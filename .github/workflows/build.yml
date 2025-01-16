@@ -63,7 +63,24 @@ jobs:
         run: |
           chmod +x build-claude-desktop.sh
           
-      - name: Build packages
+      - name: Install dependencies (Fedora)
+        if: matrix.package == 'rpm'
+        run: |
+          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils
+          # Create non-root user
+          useradd -m builder
+          chown -R builder:builder .
+          
+      - name: Build packages (Fedora)
+        if: matrix.package == 'rpm'
+        run: |
+          # Run as non-root user
+          su - builder -c "cd ${PWD} && ./build-claude-desktop.sh"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Build packages (Ubuntu)
+        if: matrix.package == 'deb'
         run: ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
