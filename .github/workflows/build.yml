@@ -94,7 +94,7 @@ jobs:
       - name: Install dependencies (Fedora)
         if: matrix.package == 'rpm'
         run: |
-          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils util-linux-user rust cargo
+          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils util-linux-user rust cargo openssl
           npm install -g electron@latest
 
       - name: Setup pnpm
