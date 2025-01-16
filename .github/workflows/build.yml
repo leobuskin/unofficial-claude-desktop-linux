@@ -40,15 +40,6 @@ jobs:
           dnf install -y git
           cp -r source/. .
 
-      - name: Debug container environment
-        if: ${{ contains(matrix.distro, ':') }}
-        run: |
-          pwd
-          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-          ls -la
-          ls -la source/
-          git rev-parse --git-dir
-
       # Cache Node.js dependencies (container-aware)
       - name: Set up Node.js
         uses: actions/setup-node@v4
