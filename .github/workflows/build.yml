@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            build/Claude-Setup-x64.exe
+            source/build/Claude-Setup-x64.exe
           key: claude-installer-${{ env.CLAUDE_VERSION }}
 
       # Cache Node.js dependencies (container-aware)
@@ -61,8 +61,8 @@ jobs:
           path: |
             ~/.pnpm-store
             ~/.npm
-            node_modules
-          key: ${{ matrix.distro }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+            source/node_modules
+          key: ${{ matrix.distro }}-pnpm-${{ hashFiles('source/**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ matrix.distro }}-pnpm-
 
@@ -77,8 +77,8 @@ jobs:
           path: |
             ${{ steps.cargo-home.outputs.dir }}/.cargo/registry
             ${{ steps.cargo-home.outputs.dir }}/.cargo/git
-            build/native-module/target
-          key: ${{ matrix.distro }}-cargo-${{ hashFiles('**/Cargo.lock','**/Cargo.toml') }}
+            source/build/native-module/target
+          key: ${{ matrix.distro }}-cargo-${{ hashFiles('source/**/Cargo.lock','source/**/Cargo.toml') }}
           restore-keys: |
             ${{ matrix.distro }}-cargo-
 
@@ -109,9 +109,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            build/lib
-            build/resources
-          key: extracted-artifacts-${{ env.CLAUDE_VERSION }}-${{ hashFiles('build/Claude-Setup-x64.exe') }}
+            source/build/lib
+            source/build/resources
+          key: extracted-artifacts-${{ env.CLAUDE_VERSION }}-${{ hashFiles('source/build/Claude-Setup-x64.exe') }}
           restore-keys: |
             extracted-artifacts-${{ env.CLAUDE_VERSION }}-
 
@@ -120,13 +120,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            build/native-module/*.node
-          key: native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-${{ hashFiles('build/native-module/src/**') }}
+            source/build/native-module/*.node
+          key: native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-${{ hashFiles('source/build/native-module/src/**') }}
           restore-keys: |
             native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-
 
       - name: Make build script executable
-        run: chmod +x build-claude-desktop.sh
+        run: chmod +x source/build-claude-desktop.sh
 
       - name: Build packages (Fedora)
         if: matrix.package == 'rpm'
@@ -135,7 +135,7 @@ jobs:
           export PKG_MANAGER="dnf"
           export ALLOW_ROOT=1
           export BUILD_PACKAGE=build_rpm
-          ./build-claude-desktop.sh
+          cd source && ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -145,7 +145,7 @@ jobs:
           export PKG_MANAGER="apt"
           export ALLOW_ROOT=1
           export BUILD_PACKAGE=build_deb
-          ./build-claude-desktop.sh
+          cd source && ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -153,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: claude-desktop-${{ matrix.package }}
-          path: packages/*.${{ matrix.package }}
+          path: source/packages/*.${{ matrix.package }}
           if-no-files-found: error
 
   create-release:
