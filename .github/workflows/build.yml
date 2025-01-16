@@ -30,6 +30,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          set-safe-directory: true
+          path: source
+
+      - name: Setup container workspace
+        if: ${{ contains(matrix.distro, ':') }}
+        run: |
+          cp -r source/. .
+          git config --global --add safe.directory '*'
 
       # Cache downloaded Claude installer (works for both container and non-container)
       - name: Cache Claude installer
