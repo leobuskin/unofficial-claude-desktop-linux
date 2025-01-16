@@ -116,6 +116,9 @@ jobs:
           restore-keys: |
             native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-
 
+      - name: Make build script executable
+        run: chmod +x build-claude-desktop.sh
+
       - name: Build packages (Fedora)
         if: matrix.package == 'rpm'
         run: |
@@ -128,7 +131,8 @@ jobs:
           
       - name: Build packages (Ubuntu)
         if: matrix.package == 'deb'
-        run: ./build-claude-desktop.sh
+        run: |
+          ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
