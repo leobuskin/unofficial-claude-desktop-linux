@@ -118,6 +118,8 @@ jobs:
         if: matrix.package == 'rpm'
         run: |
           export PKG_INSTALL="dnf install -y"
+          export PKG_MANAGER="dnf"
+          export EUID=1000
           ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -125,6 +127,8 @@ jobs:
       - name: Build packages (Ubuntu)
         if: matrix.package == 'deb'
         run: |
+          export PKG_MANAGER="apt"
+          export EUID=1000
           ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
