@@ -55,8 +55,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Prepare build script
+        run: |
+          chmod +x build.sh
+          
       - name: Build packages
-        run: ./build-claude-desktop.sh
+        run: ./build.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
