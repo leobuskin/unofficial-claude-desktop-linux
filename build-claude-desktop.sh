@@ -395,7 +395,7 @@ main() {
     log_info "Building Claude Desktop for Linux..."
     
     # Check for root
-    if [ "$EUID" -eq 0 ]; then
+    if [ "$EUID" -eq 0 ] && [ -z "${ALLOW_ROOT:-}" ]; then
         log_error "Please do not run this script as root"
         exit 1
     fi
@@ -403,7 +403,7 @@ main() {
     check_dependencies
     
     # Create clean build environment
-    rm -rf "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR"
+    rm -rf "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR" "$WORK_DIR/package-root/usr"
     mkdir -p "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR" "$WORK_DIR/package-root/usr"
     
     setup_native_module
