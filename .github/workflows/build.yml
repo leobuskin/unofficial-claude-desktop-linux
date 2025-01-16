@@ -41,19 +41,28 @@ jobs:
           cp -r source/. .
           git config --global --add safe.directory '*'
 
-      # Cache downloaded Claude installer (works for both container and non-container)
-      - name: Cache Claude installer
-        uses: actions/cache@v4
-        with:
-          path: |
-            source/build/Claude-Setup-x64.exe
-          key: claude-installer-${{ env.CLAUDE_VERSION }}
+      - name: Debug container environment
+        if: ${{ contains(matrix.distro, ':') }}
+        run: |
+          pwd
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          ls -la
+          ls -la source/
+          git rev-parse --git-dir
 
       # Cache Node.js dependencies (container-aware)
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+
+      # Cache downloaded Claude installer
+      - name: Cache Claude installer
+        uses: actions/cache@v4
+        with:
+          path: |
+            source/build/Claude-Setup-x64.exe
+          key: claude-installer-${{ env.CLAUDE_VERSION }}
 
       - name: Cache pnpm modules
         uses: actions/cache@v4
@@ -70,7 +79,7 @@ jobs:
         id: cargo-home
         run: echo "dir=${{ contains(matrix.distro, ':') && '/root' || '~' }}" >> $GITHUB_OUTPUT
 
-      # Cache Rust dependencies (container-aware)
+      # Cache Rust dependencies
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -115,7 +124,7 @@ jobs:
           restore-keys: |
             extracted-artifacts-${{ env.CLAUDE_VERSION }}-
 
-      # Cache compiled native module
+      # Cache native module
       - name: Cache native module
         uses: actions/cache@v4
         with:
