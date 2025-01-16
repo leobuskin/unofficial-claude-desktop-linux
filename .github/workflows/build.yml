@@ -37,6 +37,7 @@ jobs:
       - name: Setup container workspace
         if: ${{ contains(matrix.distro, ':') }}
         run: |
+          dnf install -y git
           cp -r source/. .
           git config --global --add safe.directory '*'
 
