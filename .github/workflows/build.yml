@@ -31,16 +31,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Cache downloaded Claude installer
+      # Cache downloaded Claude installer (works for both container and non-container)
       - name: Cache Claude installer
         uses: actions/cache@v4
-        id: cache-claude
         with:
           path: |
             build/Claude-Setup-x64.exe
           key: claude-installer-${{ env.CLAUDE_VERSION }}
 
-      # Cache Node.js dependencies
+      # Cache Node.js dependencies (container-aware)
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -53,20 +52,25 @@ jobs:
             ~/.pnpm-store
             ~/.npm
             node_modules
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ matrix.distro }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ matrix.distro }}-pnpm-
 
+      - name: Set cargo home
+        id: cargo-home
+        run: echo "dir=${{ contains(matrix.distro, ':') && '/root' || '~' }}" >> $GITHUB_OUTPUT
+
+      # Cache Rust dependencies (container-aware)
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ${{ steps.cargo-home.outputs.dir }}/.cargo/registry
+            ${{ steps.cargo-home.outputs.dir }}/.cargo/git
             build/native-module/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          key: ${{ matrix.distro }}-cargo-${{ hashFiles('**/Cargo.lock','**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ matrix.distro }}-cargo-
 
       - name: Install dependencies (Ubuntu)
         if: matrix.package == 'deb'
