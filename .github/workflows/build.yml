@@ -31,46 +31,91 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Cache downloaded Claude installer
+      - name: Cache Claude installer
+        uses: actions/cache@v4
+        id: cache-claude
+        with:
+          path: |
+            build/Claude-Setup-x64.exe
+          key: claude-installer-${{ env.CLAUDE_VERSION }}
+
+      # Cache Node.js dependencies
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+
+      - name: Cache pnpm modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/native-module/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Install dependencies (Ubuntu)
         if: matrix.package == 'deb'
         run: |
           sudo apt-get update
           sudo apt-get install -y p7zip-full wget icoutils imagemagick dpkg-dev curl
-          # Install electron globally via npm
           sudo npm install -g electron@latest
 
       - name: Install dependencies (Fedora)
         if: matrix.package == 'rpm'
         run: |
-          sudo dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm
-          # Install electron globally via npm
-          sudo npm install -g electron@latest
-
+          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils util-linux-user
+          # Create non-root user
+          useradd -m builder
+          chown -R builder:builder .
+          # Global npm cache for non-root user
+          mkdir -p /home/builder/.npm
+          chown -R builder:builder /home/builder/.npm
+          
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: latest
+          run_install: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Prepare build script
-        run: |
-          chmod +x build-claude-desktop.sh
-          
-      - name: Install dependencies (Fedora)
-        if: matrix.package == 'rpm'
-        run: |
-          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils
-          # Create non-root user
-          useradd -m builder
-          chown -R builder:builder .
-          
+      # Cache extracted artifacts
+      - name: Cache extracted artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/lib
+            build/resources
+          key: extracted-artifacts-${{ env.CLAUDE_VERSION }}-${{ hashFiles('build/Claude-Setup-x64.exe') }}
+          restore-keys: |
+            extracted-artifacts-${{ env.CLAUDE_VERSION }}-
+
+      # Cache compiled native module
+      - name: Cache native module
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/native-module/*.node
+          key: native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-${{ hashFiles('build/native-module/src/**') }}
+          restore-keys: |
+            native-module-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-
+
       - name: Build packages (Fedora)
         if: matrix.package == 'rpm'
         run: |
@@ -78,6 +123,8 @@ jobs:
           su - builder -c "cd ${PWD} && ./build-claude-desktop.sh"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_HOME: "/home/builder/.cargo"
+          RUSTUP_HOME: "/home/builder/.rustup"
           
       - name: Build packages (Ubuntu)
         if: matrix.package == 'deb'
