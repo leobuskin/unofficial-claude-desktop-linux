@@ -38,11 +38,7 @@ jobs:
         if: ${{ contains(matrix.distro, ':') }}
         run: |
           dnf install -y git
-          git init
           cp -r source/. .
-          cp -r source/../.git .
-          git config --global --add safe.directory '*'
-          git add .
 
       - name: Debug container environment
         if: ${{ contains(matrix.distro, ':') }}
