@@ -78,14 +78,9 @@ jobs:
       - name: Install dependencies (Fedora)
         if: matrix.package == 'rpm'
         run: |
-          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils util-linux-user
-          # Create non-root user
-          useradd -m builder
-          chown -R builder:builder .
-          # Global npm cache for non-root user
-          mkdir -p /home/builder/.npm
-          chown -R builder:builder /home/builder/.npm
-          
+          dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm shadow-utils util-linux-user rust cargo
+          npm install -g electron@latest
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
@@ -122,13 +117,11 @@ jobs:
       - name: Build packages (Fedora)
         if: matrix.package == 'rpm'
         run: |
-          # Run as non-root user
-          su - builder -c "cd ${PWD} && ./build-claude-desktop.sh"
+          export PKG_INSTALL="dnf install -y"
+          ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_HOME: "/home/builder/.cargo"
-          RUSTUP_HOME: "/home/builder/.rustup"
-          
+
       - name: Build packages (Ubuntu)
         if: matrix.package == 'deb'
         run: |
