@@ -120,6 +120,7 @@ jobs:
           export PKG_INSTALL="dnf install -y"
           export PKG_MANAGER="dnf"
           export ALLOW_ROOT=1
+          export BUILD_PACKAGE=build_rpm
           ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,6 +130,7 @@ jobs:
         run: |
           export PKG_MANAGER="apt"
           export ALLOW_ROOT=1
+          export BUILD_PACKAGE=build_deb
           ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
