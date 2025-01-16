@@ -41,11 +41,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y p7zip-full wget icoutils imagemagick dpkg-dev curl
+          # Install electron globally via npm
+          sudo npm install -g electron@latest
 
       - name: Install dependencies (Fedora)
         if: matrix.package == 'rpm'
         run: |
           sudo dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl
+          # Install electron globally via npm
+          sudo npm install -g electron@latest
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
