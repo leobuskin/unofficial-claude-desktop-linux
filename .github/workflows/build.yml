@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies (Fedora)
         if: matrix.package == 'rpm'
         run: |
-          sudo dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl
+          sudo dnf install -y p7zip p7zip-plugins wget icoutils ImageMagick rpm-build curl nodejs npm
           # Install electron globally via npm
           sudo npm install -g electron@latest
 
@@ -61,10 +61,10 @@ jobs:
 
       - name: Prepare build script
         run: |
-          chmod +x build.sh
+          chmod +x build-claude-desktop.sh
           
       - name: Build packages
-        run: ./build.sh
+        run: ./build-claude-desktop.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
