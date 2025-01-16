@@ -64,7 +64,7 @@ jobs:
             ~/.pnpm-store
             ~/.npm
             source/node_modules
-          key: ${{ matrix.distro }}-pnpm-${{ hashFiles('source/**/pnpm-lock.yaml') }}
+          key: ${{ matrix.distro }}-pnpm-${{ hashFiles('source/build-claude-desktop.sh') }}-${{ env.CLAUDE_VERSION }}
           restore-keys: |
             ${{ matrix.distro }}-pnpm-
 
