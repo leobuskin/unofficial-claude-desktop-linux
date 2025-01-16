@@ -3,14 +3,17 @@ set -euo pipefail
 
 # Configuration
 CLAUDE_VERSION="0.7.8"
+ELECTRON_VERSION="34.0.0"  # Electron version that matches Claude Desktop
+CLAUDE_HASH="sha256-SOO1FkAfcOP50Z4YPyrrpSIi322gQdy9vk0CKdYjMwA="
 CLAUDE_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
 WORK_DIR="$(pwd)/build"
+CACHE_DIR="$(pwd)/.cache/downloads"
 OUTPUT_DIR="$(pwd)/claude-desktop"
 PACKAGE_DIR="$(pwd)/packages"
 
 # Package definitions
-DNF_PACKAGES="p7zip p7zip-plugins nodejs rust cargo electron ImageMagick icoutils"
-DEBIAN_PACKAGES="p7zip-full nodejs cargo rustc electron imagemagick icoutils dpkg-dev"
+DNF_PACKAGES="p7zip p7zip-plugins nodejs rust cargo ImageMagick icoutils"
+DEBIAN_PACKAGES="p7zip-full nodejs cargo rustc imagemagick icoutils dpkg-dev"
 
 # Logging functions
 log_info() {
@@ -62,7 +65,7 @@ check_dependencies() {
     local missing=()
     
     # Common dependencies
-    local deps=("7z" "pnpm" "node" "cargo" "rustc" "electron" "wrestool" "icotool" "convert")
+    local deps=("7z" "pnpm" "node" "cargo" "rustc" "wrestool" "icotool" "convert")
     
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
@@ -71,7 +74,6 @@ check_dependencies() {
     done
     
     if [ ${#missing[@]} -ne 0 ]; then
-        detect_package_manager
         log_warning "Missing required dependencies: ${missing[*]}"
         log_info "Installing dependencies..."
         
@@ -81,11 +83,21 @@ check_dependencies() {
         
         $PKG_INSTALL $PACKAGES
         
-        # Install pnpm
+        # Install pnpm and ensure it's available
         if ! command -v pnpm >/dev/null 2>&1; then
             curl -fsSL https://get.pnpm.io/install.sh | sh -
-            source ~/.bashrc
+            export PNPM_HOME="$HOME/.local/share/pnpm"
+            case ":$PATH:" in
+                *":$PNPM_HOME:"*) ;;
+                *) export PATH="$PNPM_HOME:$PATH" ;;
+            esac
         fi
+    fi
+
+    # Install electron and asar as dev dependencies if not already installed
+    if [ ! -d "node_modules/electron" ] || [ ! -d "node_modules/@electron/asar" ]; then
+        log_info "Installing dev dependencies..."
+        pnpm install -D electron@$ELECTRON_VERSION @electron/asar@latest
     fi
 }
 
@@ -106,8 +118,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2.12.2", default-features = false, features = ["napi4"] }
-napi-derive = "2.12.2"
+napi = { version = "2.14.1", default-features = false, features = ["napi4"] }
+napi-derive = "2.14.1"
 EOF
 
     # Create src/lib.rs with native bindings
@@ -208,7 +220,7 @@ EOF
     pnpm run build
 
     if [ ! -f "claude-native.linux-x64-gnu.node" ]; then
-        log_error "Native module build failed"
+        log_error "Native module build failed - output file not found"
         exit 1
     fi
 }
@@ -217,14 +229,35 @@ EOF
 download_and_extract() {
     log_info "Downloading Claude Desktop..."
     mkdir -p "$WORK_DIR"
+    mkdir -p "$CACHE_DIR"
     cd "$WORK_DIR"
     
-    if [ ! -f "Claude-Setup-x64.exe" ]; then
-        wget "$CLAUDE_URL" -O "Claude-Setup-x64.exe"
+    LOCAL_FILE="${CACHE_DIR}/Claude-Setup-x64-${CLAUDE_VERSION}.exe"
+    
+    if [ -f "$LOCAL_FILE" ]; then
+        CURRENT_HASH=$(openssl dgst -sha256 -binary "$LOCAL_FILE" | openssl base64 | sed 's/^/sha256-/')
+        if [ "$CURRENT_HASH" = "$CLAUDE_HASH" ]; then
+            log_info "Using cached file with correct hash..."
+        else
+            log_warning "Cache hash mismatch, redownloading..."
+            wget "$CLAUDE_URL" -O "$LOCAL_FILE"
+        fi
+    else
+        log_info "Downloading to cache..."
+        wget "$CLAUDE_URL" -O "$LOCAL_FILE"
     fi
     
-    log_info "Extracting..."
-    7z x -y "Claude-Setup-x64.exe"
+    # Verify hash after download
+    DOWNLOAD_HASH=$(openssl dgst -sha256 -binary "$LOCAL_FILE" | openssl base64 | sed 's/^/sha256-/')
+    if [ "$DOWNLOAD_HASH" != "$CLAUDE_HASH" ]; then
+        log_error "Hash verification failed! Expected: $CLAUDE_HASH, Got: $DOWNLOAD_HASH"
+        exit 1
+    fi
+    
+    log_info "Extracting from cache..."
+    cp "$LOCAL_FILE" ./Claude-Setup.exe
+    7z x -y "./Claude-Setup.exe"
+    rm "./Claude-Setup.exe"
     
     NUPKG_FILE=$(find . -name "*.nupkg" | head -n 1)
     7z x -y "$NUPKG_FILE"
@@ -253,28 +286,32 @@ process_icons() {
 process_asar() {
     log_info "Processing app.asar..."
     cd "$WORK_DIR"
-    
-    # Process for both package and local installation
-    for install_dir in "$OUTPUT_DIR" "$WORK_DIR/package-root/usr"; do
-        mkdir -p "$install_dir/lib/claude-desktop"
-        cp "lib/net45/resources/app.asar" "$install_dir/lib/claude-desktop/"
-        cp -r "lib/net45/resources/app.asar.unpacked" "$install_dir/lib/claude-desktop/"
-        
-        cd "$install_dir/lib/claude-desktop"
-        npx asar extract app.asar app.asar.contents
-        
-        # Replace native bindings
-        cp "$WORK_DIR/native-module/claude-native.linux-x64-gnu.node" \
-            "app.asar.contents/node_modules/claude-native/claude-native-binding.node"
-        cp "$WORK_DIR/native-module/claude-native.linux-x64-gnu.node" \
-            "app.asar.unpacked/node_modules/claude-native/claude-native-binding.node"
-        
-        # Copy Tray icons
-        mkdir -p app.asar.contents/resources
-        cp "$WORK_DIR/lib/net45/resources/Tray"* app.asar.contents/resources/
-        
-        npx asar pack app.asar.contents app.asar
+
+    # Ensure electron is installed in the package-root directory
+    if [ ! -d "package-root/usr/lib/claude-desktop/node_modules/electron" ]; then
+        mkdir -p "package-root/usr/lib/claude-desktop"
+        cd "package-root/usr/lib/claude-desktop"
+        pnpm init
+        pnpm install -D electron@$ELECTRON_VERSION @electron/asar@latest
         cd "$WORK_DIR"
+    fi
+    
+    for target_dir in "$OUTPUT_DIR" "$WORK_DIR/package-root/usr"; do
+        mkdir -p "$target_dir/lib/claude-desktop"
+        cp "lib/net45/resources/app.asar" "$target_dir/lib/claude-desktop/"
+        
+        # Create unpacked directory but don't copy Windows native modules
+        mkdir -p "$target_dir/lib/claude-desktop/app.asar.unpacked/node_modules/claude-native"
+        
+        # Copy our Linux native module
+        cp "$WORK_DIR/native-module/claude-native.linux-x64-gnu.node" \
+            "$target_dir/lib/claude-desktop/app.asar.unpacked/node_modules/claude-native/claude-native-binding.node"
+        
+        # Copy electron only if it's not already there
+        if [ "$target_dir" != "$WORK_DIR/package-root/usr" ]; then
+            mkdir -p "$target_dir/lib/claude-desktop/node_modules"
+            cp -r "package-root/usr/lib/claude-desktop/node_modules/electron" "$target_dir/lib/claude-desktop/node_modules/"
+        fi
     done
 }
 
@@ -301,7 +338,7 @@ create_launcher() {
         mkdir -p "$install_dir/bin"
         cat > "$install_dir/bin/claude-desktop" << EOF
 #!/bin/bash
-electron "\${INSTALL_PREFIX:-/usr}/lib/claude-desktop/app.asar" \
+"\${INSTALL_PREFIX:-/usr}/lib/claude-desktop/node_modules/electron/dist/electron" "\${INSTALL_PREFIX:-/usr}/lib/claude-desktop/app.asar" \
     \${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations} "\$@"
 EOF
         chmod +x "$install_dir/bin/claude-desktop"
@@ -318,7 +355,7 @@ Package: claude-desktop
 Version: $CLAUDE_VERSION
 Architecture: amd64
 Maintainer: Claude Desktop Linux Maintainers
-Depends: nodejs, npm, electron
+Depends: nodejs
 Description: Claude Desktop for Linux
  Claude is an AI assistant from Anthropic.
  This package provides the desktop interface for Claude.
@@ -344,7 +381,6 @@ License:        Proprietary
 URL:            https://anthropic.com
 
 BuildRequires:  nodejs
-Requires:       nodejs electron
 
 %description
 Claude is an AI assistant from Anthropic.
@@ -400,11 +436,12 @@ main() {
         exit 1
     fi
     
+    detect_package_manager
     check_dependencies
     
     # Create clean build environment
-    rm -rf "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR" "$WORK_DIR/package-root/usr"
-    mkdir -p "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR" "$WORK_DIR/package-root/usr"
+    rm -rf "$WORK_DIR" "$OUTPUT_DIR" "$PACKAGE_DIR"
+    mkdir -p "$WORK_DIR/package-root/usr" "$OUTPUT_DIR" "$PACKAGE_DIR"
     
     setup_native_module
     download_and_extract
