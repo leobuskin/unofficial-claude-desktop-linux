@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Configuration
-CLAUDE_VERSION="0.7.8"
+CLAUDE_VERSION="0.7.9"
 ELECTRON_VERSION="34.0.0"  # Electron version that matches Claude Desktop
-CLAUDE_HASH="sha256-SOO1FkAfcOP50Z4YPyrrpSIi322gQdy9vk0CKdYjMwA="
+CLAUDE_HASH="sha256-raoKgJu55g7mmZ4K+eX7YWkXGHYVcFBm5qQWk+p9LE0="
 CLAUDE_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
 WORK_DIR="$(pwd)/build"
 CACHE_DIR="$(pwd)/.cache/downloads"
@@ -328,6 +328,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;
 MimeType=x-scheme-handler/claude
+StartupWMClass=Claude
 EOF
     done
 }
