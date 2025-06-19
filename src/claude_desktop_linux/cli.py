@@ -1,5 +1,7 @@
 """CLI interface for Claude Desktop Linux builder."""
 
+import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -12,9 +14,22 @@ from .detector import ClaudeVersionDetector
 
 @click.group()
 @click.version_option(version=__version__, prog_name='claude-desktop-build')
-def cli() -> None:
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.option('--debug', is_flag=True, help='Enable debug output')
+def cli(verbose: bool, debug: bool) -> None:
     """Build Claude Desktop for Linux from Windows installer."""
-    pass
+    # Set up logging
+    if debug:
+        level = logging.DEBUG
+    elif verbose:
+        level = logging.INFO
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format='%(levelname)s: %(message)s',
+    )
 
 
 @cli.command()
@@ -22,19 +37,19 @@ def cli() -> None:
 def info(force: bool) -> None:
     """Show information about the latest Claude Desktop version."""
     detector = ClaudeVersionDetector()
-    
+
     try:
         detector.download_exe(force=force)
         metadata = detector.get_version_info()
-        
-        click.echo(f"Claude Desktop Version: {metadata['version']}")
-        click.echo(f"Electron Version: {metadata['electron_version']}")
-        click.echo(f"Node Requirement: {metadata.get('node_requirement', 'Not specified')}")
-        click.echo(f"Application Name: {metadata['app_name']}")
-        click.echo(f"Installer Hash: {metadata['exe_hash']}")
-        
+
+        click.echo(f'Claude Desktop Version: {metadata["version"]}')
+        click.echo(f'Electron Version: {metadata["electron_version"]}')
+        click.echo(f'Node Requirement: {metadata.get("node_requirement", "Not specified")}')
+        click.echo(f'Application Name: {metadata["app_name"]}')
+        click.echo(f'Installer Hash: {metadata["exe_hash"]}')
+
     except Exception as e:
-        click.echo(f'Error: {e}', err=True)
+        click.echo(f'Error: {e!s}', err=True)
         sys.exit(1)
 
 
@@ -45,21 +60,21 @@ def info(force: bool) -> None:
 def build(work_dir: Path | None, output_dir: Path | None, skip_deps: bool) -> None:
     """Build Claude Desktop for Linux."""
     builder = ClaudeDesktopBuilder()
-    
+
     # Override directories if specified
     if work_dir:
         builder.work_dir = work_dir
     if output_dir:
         builder.output_dir = output_dir
-    
+
     try:
         if not skip_deps:
             builder.check_dependencies()
-        
+
         builder.build()
-        
+
     except Exception as e:
-        click.echo(f'Error: {e}', err=True)
+        click.echo(f'Error: {e!s}', err=True)
         sys.exit(1)
 
 
@@ -67,28 +82,25 @@ def build(work_dir: Path | None, output_dir: Path | None, skip_deps: bool) -> No
 def clean() -> None:
     """Clean build artifacts and cache."""
     from .config import CACHE_DIR, PACKAGE_DIR, WORK_DIR
-    
+
     dirs_to_clean = [WORK_DIR, PACKAGE_DIR]
-    
+
     for dir_path in dirs_to_clean:
         if dir_path.exists():
             click.echo(f'Removing {dir_path}...')
-            import shutil
             shutil.rmtree(dir_path)
-    
+
     # Optionally clean cache
-    if CACHE_DIR.exists():
-        if click.confirm('Also remove download cache?'):
-            click.echo(f'Removing {CACHE_DIR}...')
-            import shutil
-            shutil.rmtree(CACHE_DIR)
-    
+    if CACHE_DIR.exists() and click.confirm('Also remove download cache?'):
+        click.echo(f'Removing {CACHE_DIR}...')
+        shutil.rmtree(CACHE_DIR)
+
     click.echo('✓ Cleanup complete')
 
 
 def main() -> None:
-    """Main entry point."""
-    cli()
+    """Entry point for the CLI."""
+    cli(auto_envvar_prefix='CLAUDE_DESKTOP')
 
 
 if __name__ == '__main__':

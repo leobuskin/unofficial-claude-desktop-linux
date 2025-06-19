@@ -52,6 +52,17 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["ALL"]
+ignore = [
+    "S603",   # subprocess without shell=True (we're careful)
+    "S607",   # partial executable path (system commands)
+    "Q000",   # Single quotes (we use single quotes)
+    "FBT001", # Boolean positional arguments (OK for CLI tools)
+    "FBT002", # Boolean default positional arguments (OK for CLI tools)
+    "BLE001", # Blind exception catching (we re-raise with context)
+    "PLC0415", # Import outside top-level (needed for lazy imports)
+    "D401",   # First line imperative mood (style preference)
+    "C901",   # Too complex (sometimes unavoidable)
+]
 
 [tool.ruff.format]
 quote-style = "single"
