@@ -15,20 +15,7 @@ Automated Linux packages for Claude Desktop, built from the official Windows ins
 
 ## 📦 Installation
 
-### Option 1: APT Repository (Recommended)
-
-Set up the repository once and get automatic updates forever:
-
-```bash
-# Quick setup
-curl -fsSL https://raw.githubusercontent.com/leobuskin/claude-desktop-linux/main/setup-apt-repo.sh | bash
-
-# Install Claude Desktop
-sudo apt update
-sudo apt install claude-desktop
-```
-
-### Option 2: Direct Download
+### Direct Download (Recommended)
 
 Download the latest .deb package from the [releases page](https://github.com/leobuskin/claude-desktop-linux/releases/latest):
 
@@ -40,12 +27,10 @@ sudo dpkg -i claude-desktop_*.deb
 
 ## 🔄 Updates
 
-If you used the APT repository method, updates are automatic:
-
-```bash
-sudo apt update
-sudo apt upgrade
-```
+To get notified of new releases:
+1. Click "Watch" → "Custom" → "Releases" on this repository
+2. Check the [releases page](https://github.com/leobuskin/claude-desktop-linux/releases) regularly
+3. Download and install new versions when available
 
 ## 🏗️ How It Works
 

@@ -237,25 +237,37 @@ jobs:
           ref: gh-pages
         continue-on-error: true
       
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: packages
-          path: new-packages/
-      
       - name: Set up APT repository structure
         run: |
           # Create directory structure if it doesn't exist
           mkdir -p dists/stable/main/binary-amd64
           mkdir -p pool/main/c/claude-desktop
           
-          # Copy new package to pool
-          cp new-packages/*.deb pool/main/c/claude-desktop/
+          # Instead of storing .deb files, create a redirect to GitHub releases
+          VERSION="${{ needs.check-version.outputs.new_version }}"
+          REPO="${{ github.repository }}"
           
-          # Generate Packages file
-          cd pool/main/c/claude-desktop
-          dpkg-scanpackages . > ../../../../dists/stable/main/binary-amd64/Packages
-          gzip -k -f ../../../../dists/stable/main/binary-amd64/Packages
+          # Create a README explaining how to download
+          cat > pool/main/c/claude-desktop/README.md << EOF
+          # Claude Desktop Packages
+          
+          Due to file size limitations, .deb packages are hosted on GitHub Releases.
+          
+          Download the latest version from:
+          https://github.com/${REPO}/releases/latest
+          EOF
+          
+          # Create a Packages file that references the GitHub release
+          # This is a workaround - users will need to manually download
+          cat > dists/stable/main/binary-amd64/Packages << EOF
+          Package: claude-desktop
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: Claude Desktop Linux Contributors
+          Description: Desktop application for Claude.ai
+           Please download from: https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop_${VERSION}_amd64.deb
+          EOF
+          gzip -k -f dists/stable/main/binary-amd64/Packages
       
       - name: Create Release file
         run: |
@@ -304,13 +316,18 @@ jobs:
               <h1>Claude Desktop Linux APT Repository</h1>
               <p>Automatically updated Debian packages for Claude Desktop.</p>
               
-              <h2>Setup Instructions</h2>
-              <pre><code># Add the repository
-              echo "deb https://${REPO_OWNER}.github.io/${REPO_NAME}/ stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
+              <h2>Installation</h2>
+              <p><strong>Note:</strong> Due to file size limitations, packages are hosted on GitHub Releases.</p>
               
-              # Update and install
-              sudo apt update
-              sudo apt install claude-desktop</code></pre>
+              <h3>Direct Download (Recommended)</h3>
+              <pre><code># Download the latest .deb package
+              wget https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/claude-desktop_${VERSION}_amd64.deb
+              
+              # Install
+              sudo dpkg -i claude-desktop_*.deb</code></pre>
+              
+              <h3>Automatic Updates</h3>
+              <p>To get notified of new releases, click "Watch" → "Custom" → "Releases" on the GitHub repository.</p>
               
               <h2>Latest Version</h2>
               <p>Version: <strong>${VERSION}</strong></p>
@@ -384,4 +401,4 @@ jobs:
             --repo "${REPO}" \
             --title "🎉 New Claude Desktop version ${VERSION} available" \
             --body-file issue_body.md \
-            --label "release,automated"
+            --label "automated"
