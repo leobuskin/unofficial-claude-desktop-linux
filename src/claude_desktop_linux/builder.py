@@ -115,19 +115,30 @@ class ClaudeDesktopBuilder:
         os.chdir(native_dir)
 
         try:
-            # Check if it's a yarn project
-            if (native_dir / 'yarn.lock').exists() or 'yarn' in (native_dir / 'package.json').read_text():
-                # Create empty yarn.lock if it doesn't exist to isolate project
-                if not (native_dir / 'yarn.lock').exists():
-                    (native_dir / 'yarn.lock').touch()
+            # For patchy-cnb, we can use npm directly like Nix does
+            # This avoids yarn.lock issues
+            package_json_path = native_dir / 'package.json'
+            if package_json_path.exists():
+                package_json = json.loads(package_json_path.read_text())
 
-                # Enable corepack for yarn
-                subprocess.run(['corepack', 'enable'], check=True)
-                subprocess.run(['yarn', 'install'], check=True)
-                subprocess.run(['yarn', 'run', 'build'], check=True)
+                # Check if this is patchy-cnb
+                if package_json.get('name') == 'patchy-cnb':
+                    self.logger.info('Building patchy-cnb with npm...')
+                    # Use npm directly to avoid yarn.lock issues
+                    subprocess.run(['npm', 'install'], check=True, cwd=native_dir)
+                    subprocess.run(['npm', 'run', 'build'], check=True, cwd=native_dir)
+                elif 'yarn' in package_json.get('packageManager', ''):
+                    # For other yarn projects
+                    subprocess.run(['corepack', 'enable'], check=True)
+                    subprocess.run(['yarn', 'install'], check=True, cwd=native_dir)
+                    subprocess.run(['yarn', 'run', 'build'], check=True, cwd=native_dir)
+                else:
+                    # Default to pnpm
+                    subprocess.run(['pnpm', 'install'], check=True, cwd=native_dir)
+                    subprocess.run(['pnpm', 'run', 'build'], check=True, cwd=native_dir)
             else:
-                subprocess.run(['pnpm', 'install'], check=True)
-                subprocess.run(['pnpm', 'run', 'build'], check=True)
+                msg = 'No package.json found in native module directory'
+                raise RuntimeError(msg)
         finally:
             os.chdir(original_dir)
 
