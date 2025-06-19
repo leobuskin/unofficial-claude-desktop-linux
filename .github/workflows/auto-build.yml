@@ -243,8 +243,7 @@ jobs:
               
               <h2>Setup Instructions</h2>
               <pre><code># Add the repository
-echo "deb https://${REPO_OWNER}.github.io/${REPO_NAME}/ stable main" | \
-  sudo tee /etc/apt/sources.list.d/claude-desktop.list
+echo "deb https://${REPO_OWNER}.github.io/${REPO_NAME}/ stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
 
 # Update and install
 sudo apt update
