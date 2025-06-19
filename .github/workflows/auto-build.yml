@@ -243,11 +243,11 @@ jobs:
               
               <h2>Setup Instructions</h2>
               <pre><code># Add the repository
-echo "deb https://${REPO_OWNER}.github.io/${REPO_NAME}/ stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
-
-# Update and install
-sudo apt update
-sudo apt install claude-desktop</code></pre>
+              echo "deb https://${REPO_OWNER}.github.io/${REPO_NAME}/ stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
+              
+              # Update and install
+              sudo apt update
+              sudo apt install claude-desktop</code></pre>
               
               <h2>Latest Version</h2>
               <p>Version: <strong>${VERSION}</strong></p>
@@ -287,26 +287,38 @@ sudo apt install claude-desktop</code></pre>
           RUN_ID="${{ github.run_id }}"
           BUILD_DATE="$(date -u +"%Y-%m-%d %H:%M UTC")"
           
+          # Create issue body
+          cat > issue_body.md << 'ISSUE_EOF'
+          A new version of Claude Desktop (${VERSION}) has been automatically built and is now available.
+          
+          ## Installation
+          
+          ### Direct download:
+          - [Download .deb package](https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop_${VERSION}_amd64.deb)
+          
+          ### Using APT repository:
+          ```bash
+          sudo apt update
+          sudo apt upgrade claude-desktop
+          ```
+          
+          ## Automated build details
+          - Build completed: ${BUILD_DATE}
+          - GitHub Actions run: [View workflow](${SERVER_URL}/${REPO}/actions/runs/${RUN_ID})
+          
+          ---
+          *This issue was automatically created by the Claude Desktop Linux auto-builder.*
+          ISSUE_EOF
+          
+          # Substitute variables in the issue body
+          sed -i "s/\${VERSION}/${VERSION}/g" issue_body.md
+          sed -i "s|\${REPO}|${REPO}|g" issue_body.md
+          sed -i "s/\${BUILD_DATE}/${BUILD_DATE}/g" issue_body.md
+          sed -i "s|\${SERVER_URL}|${SERVER_URL}|g" issue_body.md
+          sed -i "s/\${RUN_ID}/${RUN_ID}/g" issue_body.md
+          
           gh issue create \
             --repo "${REPO}" \
             --title "🎉 New Claude Desktop version ${VERSION} available" \
-            --body "A new version of Claude Desktop (${VERSION}) has been automatically built and is now available.
-
-## Installation
-
-### Direct download:
-- [Download .deb package](https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop_${VERSION}_amd64.deb)
-
-### Using APT repository:
-\`\`\`bash
-sudo apt update
-sudo apt upgrade claude-desktop
-\`\`\`
-
-## Automated build details
-- Build completed: ${BUILD_DATE}
-- GitHub Actions run: [View workflow](${SERVER_URL}/${REPO}/actions/runs/${RUN_ID})
-
----
-*This issue was automatically created by the Claude Desktop Linux auto-builder.*" \
+            --body-file issue_body.md \
             --label "release,automated"
