@@ -10,6 +10,7 @@ import click
 from . import __version__
 from .builder import ClaudeDesktopBuilder
 from .detector import ClaudeVersionDetector
+from .monitor import VersionMonitor
 
 
 @click.group()
@@ -96,6 +97,26 @@ def clean() -> None:
         shutil.rmtree(CACHE_DIR)
 
     click.echo('✓ Cleanup complete')
+
+
+@cli.command()
+@click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
+@click.option('--repo', default='leobuskin/claude-desktop-linux', help='GitHub repository')
+def monitor(output_json: bool, repo: str) -> None:
+    """Check Claude Desktop version status."""
+    import json as json_module
+    
+    monitor = VersionMonitor(repo)
+    status = monitor.check_for_update()
+    
+    if output_json:
+        click.echo(json_module.dumps(status, indent=2))
+    else:
+        click.echo(f'Upstream version: {status["upstream_version"]}')
+        click.echo(f'Built version: {status["built_version"] or "None"}')
+        click.echo(f'Update available: {"Yes" if status["update_available"] else "No"}')
+        if status.get('message'):
+            click.echo(f'Status: {status["message"]}')
 
 
 def main() -> None:

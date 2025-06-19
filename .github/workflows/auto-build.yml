@@ -1,0 +1,303 @@
+name: Auto Build Claude Desktop
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  workflow_dispatch:     # Allow manual triggers
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - '.github/workflows/auto-build.yml'
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.version_check.outputs.should_build }}
+      new_version: ${{ steps.version_check.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      
+      - name: Check for new version
+        id: version_check
+        run: |
+          # Get latest version from Claude
+          LATEST_VERSION=$(python -c "
+          from claude_desktop_linux.detector import ClaudeVersionDetector
+          detector = ClaudeVersionDetector()
+          info = detector.get_version_info()
+          print(info['version'])
+          ")
+          
+          echo "Latest Claude version: $LATEST_VERSION"
+          echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if we already built this version
+          if gh release view "v$LATEST_VERSION" >/dev/null 2>&1; then
+            echo "Version $LATEST_VERSION already built"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version $LATEST_VERSION detected!"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build-packages:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            p7zip-full \
+            nodejs \
+            npm \
+            cargo \
+            rustc \
+            imagemagick \
+            icoutils \
+            dpkg-dev \
+            rpm
+      
+      - name: Install Python package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      
+      - name: Update version
+        run: python update-version.py
+      
+      - name: Build packages
+        id: build
+        run: |
+          # Build the packages
+          claude-desktop-build build
+          
+          # Find the built .deb file
+          DEB_FILE=$(find packages -name "*.deb" | head -1)
+          echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "version=${{ needs.check-version.outputs.new_version }}" >> $GITHUB_OUTPUT
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: packages/
+
+  create-release:
+    needs: [check-version, build-packages]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: packages/
+      
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.check-version.outputs.new_version }}"
+          
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## Claude Desktop $VERSION for Linux
+          
+          This release was automatically built from the official Claude Desktop Windows installer.
+          
+          ### Installation
+          
+          #### Debian/Ubuntu:
+          \`\`\`bash
+          sudo dpkg -i claude-desktop_${VERSION}_amd64.deb
+          \`\`\`
+          
+          #### Using APT repository:
+          See [repository setup instructions](https://github.com/${{ github.repository }}/wiki/APT-Repository)
+          
+          ### Changes
+          - Automatically detected and built from upstream version $VERSION
+          - Built on: $(date -u +"%Y-%m-%d %H:%M UTC")
+          
+          ### Verification
+          All packages are built using GitHub Actions for transparency and reproducibility.
+          EOF
+          
+          # Create GitHub release
+          gh release create "v$VERSION" \
+            --title "Claude Desktop $VERSION" \
+            --notes-file release_notes.md \
+            packages/*.deb
+
+  update-apt-repo:
+    needs: [check-version, build-packages, create-release]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+        continue-on-error: true
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: new-packages/
+      
+      - name: Set up APT repository structure
+        run: |
+          # Create directory structure if it doesn't exist
+          mkdir -p dists/stable/main/binary-amd64
+          mkdir -p pool/main/c/claude-desktop
+          
+          # Copy new package to pool
+          cp new-packages/*.deb pool/main/c/claude-desktop/
+          
+          # Generate Packages file
+          cd pool/main/c/claude-desktop
+          dpkg-scanpackages . > ../../../../dists/stable/main/binary-amd64/Packages
+          gzip -k -f ../../../../dists/stable/main/binary-amd64/Packages
+      
+      - name: Create Release file
+        run: |
+          cat > dists/stable/Release << EOF
+          Origin: Claude Desktop Linux
+          Label: Claude Desktop Linux
+          Suite: stable
+          Codename: stable
+          Version: 1.0
+          Architectures: amd64
+          Components: main
+          Description: Claude Desktop for Linux
+          Date: $(date -Ru)
+          EOF
+          
+          # Add checksums
+          cd dists/stable
+          echo "MD5Sum:" >> Release
+          find main -type f | while read f; do
+            echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f" >> Release
+          done
+          echo "SHA256:" >> Release
+          find main -type f | while read f; do
+            echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f" >> Release
+          done
+      
+      - name: Create index page
+        run: |
+          cat > index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Claude Desktop Linux Repository</title>
+              <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                  code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+                  pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+              </style>
+          </head>
+          <body>
+              <h1>Claude Desktop Linux APT Repository</h1>
+              <p>Automatically updated Debian packages for Claude Desktop.</p>
+              
+              <h2>Setup Instructions</h2>
+              <pre><code># Add the repository
+echo "deb https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ stable main" | \
+  sudo tee /etc/apt/sources.list.d/claude-desktop.list
+
+# Update and install
+sudo apt update
+sudo apt install claude-desktop</code></pre>
+              
+              <h2>Latest Version</h2>
+              <p>Version: <strong>${{ needs.check-version.outputs.new_version }}</strong></p>
+              <p>Built: <strong>$(date -u +"%Y-%m-%d %H:%M UTC")</strong></p>
+              
+              <h2>Resources</h2>
+              <ul>
+                  <li><a href="https://github.com/${{ github.repository }}">GitHub Repository</a></li>
+                  <li><a href="https://github.com/${{ github.repository }}/releases">All Releases</a></li>
+                  <li><a href="pool/main/c/claude-desktop/">Browse Packages</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          keep_files: true
+
+  notify:
+    needs: [check-version, create-release]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create notification issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.check-version.outputs.new_version }}"
+          
+          gh issue create \
+            --repo ${{ github.repository }} \
+            --title "🎉 New Claude Desktop version $VERSION available" \
+            --body "A new version of Claude Desktop ($VERSION) has been automatically built and is now available.
+
+## Installation
+
+### Direct download:
+- [Download .deb package](https://github.com/${{ github.repository }}/releases/download/v$VERSION/claude-desktop_${VERSION}_amd64.deb)
+
+### Using APT repository:
+\`\`\`bash
+sudo apt update
+sudo apt upgrade claude-desktop
+\`\`\`
+
+## Automated build details
+- Build completed: $(date -u +"%Y-%m-%d %H:%M UTC")
+- GitHub Actions run: [View workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+---
+*This issue was automatically created by the Claude Desktop Linux auto-builder.*" \
+            --label "release,automated"
