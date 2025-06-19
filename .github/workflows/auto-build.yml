@@ -83,6 +83,17 @@ jobs:
             dpkg-dev \
             rpm
       
+      - name: Enable Corepack and install package managers
+        run: |
+          # Enable corepack for yarn
+          corepack enable
+          # Pre-install the required yarn version
+          corepack prepare yarn@4.5.3 --activate
+          # Install pnpm globally
+          npm install -g pnpm
+          # Install asar for extraction
+          npm install -g asar
+      
       - name: Install Python package
         run: |
           python -m pip install --upgrade pip
