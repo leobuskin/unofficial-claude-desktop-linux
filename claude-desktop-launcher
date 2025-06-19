@@ -1,0 +1,22 @@
+#!/bin/bash
+# Temporary launcher that uses nvm node
+
+# Source nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Use node 22
+nvm use 22 >/dev/null 2>&1
+
+# Install electron if needed
+if [ ! -d "/usr/lib/claude-desktop/node_modules" ]; then
+    echo "Installing Electron..."
+    cd /usr/lib/claude-desktop
+    npm install electron@36.4.0
+fi
+
+# Launch Claude Desktop
+exec /usr/lib/claude-desktop/node_modules/electron/dist/electron \
+    /usr/lib/claude-desktop/app.asar \
+    ${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations} \
+    "$@"

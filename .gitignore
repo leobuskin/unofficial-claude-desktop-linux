@@ -1,4 +1,53 @@
-.cache/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+.eggs/
+dist/
 build/
-claude-desktop/
-packages/
+*.egg
+
+# Build artifacts
+/build/
+/packages/
+/claude-desktop/
+/test-extract/
+/app-contents/
+/asar-contents/
+/deb-extract/
+
+# Cache
+/.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+
+# Local
+*.log
+Claude-Setup-*.exe
+
+# Temporary files
+/tmp/
+/temp/
