@@ -83,11 +83,26 @@ class ClaudeVersionDetector:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Extract the exe
-            subprocess.run(
-                ['7z', 'x', '-y', str(exe_path), f'-o{tmpdir}'],
-                check=True,
-                capture_output=True,
-            )
+            self.logger.debug('Extracting exe with 7z to: %s', tmpdir)
+            self.logger.debug('Exe path: %s (size: %d bytes)', exe_path, exe_path.stat().st_size)
+
+            try:
+                result = subprocess.run(
+                    ['7z', 'x', '-y', str(exe_path), f'-o{tmpdir}'],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,  # 60 second timeout
+                )
+                self.logger.debug('7z extraction completed successfully')
+                if result.stdout:
+                    self.logger.debug('7z output: %s', result.stdout[:500])  # First 500 chars
+            except subprocess.TimeoutExpired as e:
+                self.logger.error('7z extraction timed out after 60 seconds')
+                raise RuntimeError('7z extraction timed out. The exe file might be corrupted or too large.') from e
+            except subprocess.CalledProcessError as e:
+                self.logger.error('7z extraction failed: %s', e.stderr)
+                raise RuntimeError(f'Failed to extract exe: {e.stderr}') from e
 
             # Find the nupkg file
             nupkg_files = list(Path(tmpdir).glob('*.nupkg'))
@@ -106,11 +121,22 @@ class ClaudeVersionDetector:
             version = match.group(1)
 
             # Extract the nupkg
-            subprocess.run(
-                ['7z', 'x', '-y', str(nupkg_file), f'-o{tmpdir}/nupkg'],
-                check=True,
-                capture_output=True,
-            )
+            self.logger.debug('Extracting nupkg: %s', nupkg_file.name)
+            try:
+                subprocess.run(
+                    ['7z', 'x', '-y', str(nupkg_file), f'-o{tmpdir}/nupkg'],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,  # 30 second timeout
+                )
+                self.logger.debug('Nupkg extraction completed')
+            except subprocess.TimeoutExpired as e:
+                self.logger.error('Nupkg extraction timed out')
+                raise RuntimeError('Nupkg extraction timed out') from e
+            except subprocess.CalledProcessError as e:
+                self.logger.error('Nupkg extraction failed: %s', e.stderr)
+                raise RuntimeError(f'Failed to extract nupkg: {e.stderr}') from e
 
             # Extract app.asar to read package.json
             app_asar = Path(tmpdir) / 'nupkg' / 'lib' / 'net45' / 'resources' / 'app.asar'
@@ -119,11 +145,22 @@ class ClaudeVersionDetector:
                 raise RuntimeError(msg)
 
             # Extract package.json from app.asar
-            subprocess.run(
-                ['npx', 'asar', 'extract', str(app_asar), f'{tmpdir}/app'],
-                check=True,
-                capture_output=True,
-            )
+            self.logger.debug('Extracting app.asar')
+            try:
+                subprocess.run(
+                    ['npx', 'asar', 'extract', str(app_asar), f'{tmpdir}/app'],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,  # 30 second timeout
+                )
+                self.logger.debug('app.asar extraction completed')
+            except subprocess.TimeoutExpired as e:
+                self.logger.error('app.asar extraction timed out')
+                raise RuntimeError('app.asar extraction timed out') from e
+            except subprocess.CalledProcessError as e:
+                self.logger.error('app.asar extraction failed: %s', e.stderr)
+                raise RuntimeError(f'Failed to extract app.asar: {e.stderr}') from e
 
             # Read package.json
             package_json_path = Path(tmpdir) / 'app' / 'package.json'
