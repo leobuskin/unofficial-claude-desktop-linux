@@ -101,12 +101,9 @@ class ClaudeDesktopBuilder:
         native_dir = self.work_dir / 'native-module'
         native_dir.mkdir(parents=True, exist_ok=True)
 
-        patchy_src = Path('claude-desktop-linux-flake/patchy-cnb')
+        patchy_src = Path('native/patchy-cnb')
         if not patchy_src.exists():
-            msg = (
-                'patchy-cnb not found. Please ensure the claude-desktop-linux-flake '
-                'submodule is initialized: git submodule update --init'
-            )
+            msg = 'patchy-cnb not found at native/patchy-cnb'
             raise RuntimeError(msg)
 
         shutil.copytree(patchy_src, native_dir, dirs_exist_ok=True)
@@ -199,7 +196,8 @@ class ClaudeDesktopBuilder:
             index_js.write_text(new_content)
             self.logger.info('Claude Code platforms patch applied successfully')
         else:
-            self.logger.warning('Claude Code platforms patch pattern not found')
+            self.logger.error('Claude Code platforms patch pattern not found')
+            exit(1)
 
     def patch_app_asar(self, resources_dir: Path, native_module: Path) -> Path:
         """Patch app.asar with native module and apply patches.
@@ -266,7 +264,7 @@ class ClaudeDesktopBuilder:
         """Create .desktop file for Linux desktop integration."""
         desktop_content = """[Desktop Entry]
 Name=Claude
-Comment=Desktop application for Claude.ai
+Comment=Unofficial Claude Desktop for Linux
 Exec=claude-desktop %u
 Icon=claude-desktop
 Type=Application

@@ -338,8 +338,8 @@ module.exports = new SwiftAddonStub();
     @property
     def required_commands(self) -> list[str]:
         """Return required system commands."""
-        # No wrestool/icotool needed for Mac (uses ImageMagick on .icns)
-        return ['7z', 'npx', 'cargo', 'convert']
+        # icns2png from icnsutils package for .icns conversion
+        return ['7z', 'npx', 'cargo', 'convert', 'icns2png']
 
     def extract(self, work_dir: Path) -> Path:
         """Extract Mac DMG -> Claude.app/Contents/Resources."""
@@ -451,30 +451,36 @@ module.exports = new SwiftAddonStub();
         icon_work_dir = output_dir.parent.parent.parent / 'work' / 'icons'
         icon_work_dir.mkdir(parents=True, exist_ok=True)
 
-        # Convert .icns to PNG using ImageMagick
+        # Convert .icns to PNG using icns2png (icnsutils package)
         try:
             subprocess.run(
-                ['convert', str(icns_file), str(icon_work_dir / 'claude.png')],
+                ['icns2png', '-x', '-o', str(icon_work_dir), str(icns_file)],
                 check=True,
                 capture_output=True,
             )
-        except subprocess.CalledProcessError:
-            self.logger.warning('Failed to convert icns, skipping icons')
+        except subprocess.CalledProcessError as e:
+            self.logger.warning('Failed to convert icns: %s', e.stderr)
             return
+
+        # Find the largest extracted icon to use as source
+        extracted_icons = sorted(icon_work_dir.glob('*.png'), key=lambda p: p.stat().st_size, reverse=True)
+        if not extracted_icons:
+            self.logger.warning('No icons extracted from icns')
+            return
+
+        source_icon = extracted_icons[0]
 
         # Create icon directories for different sizes
         for size in [16, 24, 32, 48, 64, 128, 256, 512]:
             size_dir = output_dir / 'share' / 'icons' / 'hicolor' / f'{size}x{size}' / 'apps'
             size_dir.mkdir(parents=True, exist_ok=True)
 
-            icon_files = list(icon_work_dir.glob('claude-*.png')) + list(icon_work_dir.glob('claude.png'))
-            if icon_files:
-                output_icon = size_dir / 'claude-desktop.png'
-                subprocess.run(
-                    ['convert', str(icon_files[0]), '-resize', f'{size}x{size}', str(output_icon)],
-                    check=True,
-                    capture_output=True,
-                )
+            output_icon = size_dir / 'claude-desktop.png'
+            subprocess.run(
+                ['convert', str(source_icon), '-resize', f'{size}x{size}', str(output_icon)],
+                check=True,
+                capture_output=True,
+            )
 
     def post_patch_app(self, app_dir: Path) -> None:
         """Create Swift stub for Linux."""

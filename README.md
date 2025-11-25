@@ -46,7 +46,7 @@ If you want to build packages manually:
 
 ```bash
 # Clone the repository
-git clone --recursive https://github.com/leobuskin/unofficial-claude-desktop-linux.git
+git clone https://github.com/leobuskin/unofficial-claude-desktop-linux.git
 cd unofficial-claude-desktop-linux
 
 # Install dependencies
@@ -90,11 +90,15 @@ Contributions are welcome! The build process is fully automated, so contribution
 
 This project is licensed under the MIT License. Claude Desktop itself is proprietary software by Anthropic.
 
+## 🙏 Acknowledgments
+
+The native module stub (`native/patchy-cnb`) is derived from [claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) by k3d3, originally dual-licensed under MIT and Apache-2.0.
+
 ## 🔗 Links
 
 - [Official Claude Desktop](https://claude.ai/download)
 - [Anthropic](https://www.anthropic.com/)
-- [Original Nix implementation](https://github.com/k3d3/claude-desktop-linux-flake)
+- [Original Nix implementation](https://github.com/k3d3/claude-desktop-linux-flake) - inspiration and native module approach
 
 ---
 
