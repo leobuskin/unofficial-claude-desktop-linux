@@ -54,9 +54,9 @@ jobs:
         run: |
           # Get latest version from Claude (URL resolution only, no download)
           LATEST_VERSION=$(python -c "
-          from claude_desktop_linux.detector import ClaudeVersionDetector
-          detector = ClaudeVersionDetector()
-          version = detector.get_latest_version()
+          from claude_desktop_linux.sources import get_source_handler
+          handler = get_source_handler('windows')
+          version = handler.get_latest_version()
           if version:
               print(version)
           else:
