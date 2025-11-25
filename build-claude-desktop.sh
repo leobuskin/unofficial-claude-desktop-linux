@@ -13,7 +13,7 @@ PACKAGE_DIR="$(pwd)/packages"
 
 # Package definitions
 DNF_PACKAGES="p7zip p7zip-plugins nodejs rust cargo ImageMagick icoutils"
-DEBIAN_PACKAGES="p7zip-full nodejs cargo rustc imagemagick icoutils dpkg-dev"
+DEBIAN_PACKAGES="p7zip-full nodejs cargo rustc imagemagick icoutils"
 
 # Logging functions
 log_info() {

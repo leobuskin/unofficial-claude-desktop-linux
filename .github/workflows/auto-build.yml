@@ -37,7 +37,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-      
+
+      - name: Install Playwright browsers
+        run: playwright install chromium
+
       - name: Check for new version
         id: version_check
         run: |
@@ -134,7 +137,6 @@ jobs:
             rustc \
             imagemagick \
             icoutils \
-            dpkg-dev \
             rpm
       
       - name: Enable Corepack and install package managers
@@ -150,6 +152,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
+
+      - name: Install Playwright browsers
+        run: playwright install chromium
       
       - name: Update version
         run: python update-version.py
@@ -206,9 +211,6 @@ jobs:
           sudo dpkg -i claude-desktop_${VERSION}_amd64.deb
           \`\`\`
           
-          #### Using APT repository:
-          See [repository setup instructions](https://github.com/${REPO}/wiki/APT-Repository)
-          
           ### Changes
           - Automatically detected and built from upstream version $VERSION
           - Built on: $(date -u +"%Y-%m-%d %H:%M UTC")
@@ -222,183 +224,3 @@ jobs:
             --title "Claude Desktop $VERSION" \
             --notes-file release_notes.md \
             packages/*.deb
-
-  update-apt-repo:
-    needs: [check-version, build-packages, create-release]
-    if: needs.check-version.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-        continue-on-error: true
-      
-      - name: Set up APT repository structure
-        run: |
-          # Create directory structure if it doesn't exist
-          mkdir -p dists/stable/main/binary-amd64
-          mkdir -p pool/main/c/claude-desktop
-          
-          # Instead of storing .deb files, create a redirect to GitHub releases
-          VERSION="${{ needs.check-version.outputs.new_version }}"
-          REPO="${{ github.repository }}"
-          
-          # Create a README explaining how to download
-          cat > pool/main/c/claude-desktop/README.md << EOF
-          # Claude Desktop Packages
-          
-          Due to file size limitations, .deb packages are hosted on GitHub Releases.
-          
-          Download the latest version from:
-          https://github.com/${REPO}/releases/latest
-          EOF
-          
-          # Create a Packages file that references the GitHub release
-          # This is a workaround - users will need to manually download
-          cat > dists/stable/main/binary-amd64/Packages << EOF
-          Package: claude-desktop
-          Version: ${VERSION}
-          Architecture: amd64
-          Maintainer: Claude Desktop Linux Contributors
-          Description: Desktop application for Claude.ai
-           Please download from: https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop_${VERSION}_amd64.deb
-          EOF
-          gzip -k -f dists/stable/main/binary-amd64/Packages
-      
-      - name: Create Release file
-        run: |
-          cat > dists/stable/Release << EOF
-          Origin: Claude Desktop Linux
-          Label: Claude Desktop Linux
-          Suite: stable
-          Codename: stable
-          Version: 1.0
-          Architectures: amd64
-          Components: main
-          Description: Claude Desktop for Linux
-          Date: $(date -Ru)
-          EOF
-          
-          # Add checksums
-          cd dists/stable
-          echo "MD5Sum:" >> Release
-          find main -type f | while read f; do
-            echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f" >> Release
-          done
-          echo "SHA256:" >> Release
-          find main -type f | while read f; do
-            echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f" >> Release
-          done
-      
-      - name: Create index page
-        run: |
-          REPO_OWNER="${{ github.repository_owner }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          VERSION="${{ needs.check-version.outputs.new_version }}"
-          BUILD_DATE="$(date -u +"%Y-%m-%d %H:%M UTC")"
-          
-          cat > index.html << EOF
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Claude Desktop Linux Repository</title>
-              <style>
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-                  code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
-                  pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
-              </style>
-          </head>
-          <body>
-              <h1>Claude Desktop Linux APT Repository</h1>
-              <p>Automatically updated Debian packages for Claude Desktop.</p>
-              
-              <h2>Installation</h2>
-              <p><strong>Note:</strong> Due to file size limitations, packages are hosted on GitHub Releases.</p>
-              
-              <h3>Direct Download (Recommended)</h3>
-              <pre><code># Download the latest .deb package
-              wget https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/claude-desktop_${VERSION}_amd64.deb
-              
-              # Install
-              sudo dpkg -i claude-desktop_*.deb</code></pre>
-              
-              <h3>Automatic Updates</h3>
-              <p>To get notified of new releases, click "Watch" → "Custom" → "Releases" on the GitHub repository.</p>
-              
-              <h2>Latest Version</h2>
-              <p>Version: <strong>${VERSION}</strong></p>
-              <p>Built: <strong>${BUILD_DATE}</strong></p>
-              
-              <h2>Resources</h2>
-              <ul>
-                  <li><a href="https://github.com/${REPO_OWNER}/${REPO_NAME}">GitHub Repository</a></li>
-                  <li><a href="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases">All Releases</a></li>
-                  <li><a href="pool/main/c/claude-desktop/">Browse Packages</a></li>
-              </ul>
-          </body>
-          </html>
-          EOF
-      
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          keep_files: true
-
-  notify:
-    needs: [check-version, create-release]
-    if: needs.check-version.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - name: Create notification issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ needs.check-version.outputs.new_version }}"
-          REPO="${{ github.repository }}"
-          SERVER_URL="${{ github.server_url }}"
-          RUN_ID="${{ github.run_id }}"
-          BUILD_DATE="$(date -u +"%Y-%m-%d %H:%M UTC")"
-          
-          # Create issue body
-          cat > issue_body.md << 'ISSUE_EOF'
-          A new version of Claude Desktop (${VERSION}) has been automatically built and is now available.
-          
-          ## Installation
-          
-          ### Direct download:
-          - [Download .deb package](https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop_${VERSION}_amd64.deb)
-          
-          ### Using APT repository:
-          ```bash
-          sudo apt update
-          sudo apt upgrade claude-desktop
-          ```
-          
-          ## Automated build details
-          - Build completed: ${BUILD_DATE}
-          - GitHub Actions run: [View workflow](${SERVER_URL}/${REPO}/actions/runs/${RUN_ID})
-          
-          ---
-          *This issue was automatically created by the Claude Desktop Linux auto-builder.*
-          ISSUE_EOF
-          
-          # Substitute variables in the issue body
-          sed -i "s/\${VERSION}/${VERSION}/g" issue_body.md
-          sed -i "s|\${REPO}|${REPO}|g" issue_body.md
-          sed -i "s/\${BUILD_DATE}/${BUILD_DATE}/g" issue_body.md
-          sed -i "s|\${SERVER_URL}|${SERVER_URL}|g" issue_body.md
-          sed -i "s/\${RUN_ID}/${RUN_ID}/g" issue_body.md
-          
-          gh issue create \
-            --repo "${REPO}" \
-            --title "🎉 New Claude Desktop version ${VERSION} available" \
-            --body-file issue_body.md \
-            --label "automated"

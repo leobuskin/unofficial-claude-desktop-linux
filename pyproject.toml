@@ -29,6 +29,8 @@ dependencies = [
     "tqdm>=4.60",
     "packaging>=21.0",
     "colorama>=0.4.4",
+    "playwright>=1.40",
+    "playwright-stealth>=1.0.6",
 ]
 
 [project.optional-dependencies]
@@ -60,12 +62,6 @@ ignore = [
     "S603",   # subprocess without shell=True (we're careful)
     "S607",   # partial executable path (system commands)
     "Q000",   # Single quotes (we use single quotes)
-    "FBT001", # Boolean positional arguments (OK for CLI tools)
-    "FBT002", # Boolean default positional arguments (OK for CLI tools)
-    "BLE001", # Blind exception catching (we re-raise with context)
-    "PLC0415", # Import outside top-level (needed for lazy imports)
-    "D401",   # First line imperative mood (style preference)
-    "C901",   # Too complex (sometimes unavoidable)
 ]
 
 [tool.ruff.format]

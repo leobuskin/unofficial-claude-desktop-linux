@@ -8,7 +8,6 @@ Automated Linux packages for Claude Desktop, built from the official Windows ins
 ## 🚀 Features
 
 - **Automatic Updates**: Daily checks for new Claude Desktop releases
-- **Native Package Manager**: Install and update through APT
 - **Zero Maintenance**: Fully automated build and distribution
 - **Transparency**: All builds happen in public GitHub Actions
 - **Version History**: All releases preserved with ability to rollback
@@ -37,8 +36,7 @@ To get notified of new releases:
 1. **Daily Automation**: GitHub Actions runs every day at midnight UTC
 2. **Version Detection**: Checks the official Claude Desktop Windows installer for new versions
 3. **Automatic Building**: If a new version is found, builds Linux packages automatically
-4. **Distribution**: Updates the APT repository and creates a GitHub release
-5. **Notification**: Creates a GitHub issue to notify about the new version
+4. **Distribution**: Creates a GitHub release with built packages
 
 ## 🛠️ Building from Source
 
