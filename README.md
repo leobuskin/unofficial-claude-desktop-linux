@@ -1,7 +1,9 @@
-# Claude Desktop for Linux
+# Unofficial Claude Desktop for Linux
 
-[![Auto Build](https://github.com/leobuskin/claude-desktop-linux/actions/workflows/auto-build.yml/badge.svg)](https://github.com/leobuskin/claude-desktop-linux/actions/workflows/auto-build.yml)
-[![Latest Release](https://img.shields.io/github/v/release/leobuskin/claude-desktop-linux)](https://github.com/leobuskin/claude-desktop-linux/releases/latest)
+*This project is not affiliated with Anthropic. It simply repackages the official Claude Desktop application for Linux systems.*
+
+[![Auto Build](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml/badge.svg)](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/leobuskin/unofficial-claude-desktop-linux)](https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/latest)
 
 Automated Linux packages for Claude Desktop, built from the official Windows installer. This project provides a maintenance-free way to install and update Claude Desktop on Debian/Ubuntu systems.
 
@@ -16,11 +18,11 @@ Automated Linux packages for Claude Desktop, built from the official Windows ins
 
 ### Direct Download (Recommended)
 
-Download the latest .deb package from the [releases page](https://github.com/leobuskin/claude-desktop-linux/releases/latest):
+Download the latest .deb package from the [releases page](https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/latest):
 
 ```bash
 # Download and install
-wget https://github.com/leobuskin/claude-desktop-linux/releases/latest/download/claude-desktop_VERSION_amd64.deb
+wget https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/download/{VERSION}/claude-desktop_{VERSION}_amd64.deb
 sudo dpkg -i claude-desktop_*.deb
 ```
 
@@ -28,7 +30,7 @@ sudo dpkg -i claude-desktop_*.deb
 
 To get notified of new releases:
 1. Click "Watch" → "Custom" → "Releases" on this repository
-2. Check the [releases page](https://github.com/leobuskin/claude-desktop-linux/releases) regularly
+2. Check the [releases page](https://github.com/leobuskin/unofficial-claude-desktop-linux/releases) regularly
 3. Download and install new versions when available
 
 ## 🏗️ How It Works
@@ -44,8 +46,8 @@ If you want to build packages manually:
 
 ```bash
 # Clone the repository
-git clone --recursive https://github.com/leobuskin/claude-desktop-linux.git
-cd claude-desktop-linux
+git clone --recursive https://github.com/leobuskin/unofficial-claude-desktop-linux.git
+cd unofficial-claude-desktop-linux
 
 # Install dependencies
 pip install -e .
@@ -62,7 +64,7 @@ claude-desktop-build build
 ## 🔍 Verification
 
 All packages are built using GitHub Actions for transparency. You can verify any build by:
-1. Checking the [GitHub Actions history](https://github.com/leobuskin/claude-desktop-linux/actions)
+1. Checking the [GitHub Actions history](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions)
 2. Comparing package checksums with release notes
 3. Building from source and comparing results
 
