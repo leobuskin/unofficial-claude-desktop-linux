@@ -472,3 +472,35 @@ impl InputEmulator {
         println!("IE set mouse scroll {direction} {amount}");
   }
 }
+
+#[napi]
+pub struct AuthRequest {}
+
+#[napi]
+impl AuthRequest {
+  #[napi(constructor)]
+  pub fn new() -> Self {
+    AuthRequest {}
+  }
+
+  // Static method (no &self) - called as AuthRequest.isAvailable()
+  #[napi(js_name = "isAvailable")]
+  pub fn is_available() -> bool {
+    false
+  }
+
+  #[napi]
+  pub fn start(
+    &self,
+    _url: String,
+    _scheme: String,
+    _window_handle: napi::bindgen_prelude::Buffer,
+  ) -> napi::Result<()> {
+    Err(napi::Error::from_reason("AuthRequest not available on Linux"))
+  }
+
+  #[napi]
+  pub fn cancel(&self) {
+    // no-op
+  }
+}
