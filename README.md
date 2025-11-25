@@ -92,7 +92,7 @@ This project is licensed under the MIT License. Claude Desktop itself is proprie
 
 ## 🙏 Acknowledgments
 
-The native module stub (`native/patchy-cnb`) is derived from [claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) by k3d3, originally dual-licensed under MIT and Apache-2.0.
+The native module stub (`src/native/patchy-cnb`) is derived from [claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) by k3d3, originally dual-licensed under MIT and Apache-2.0.
 
 ## 🔗 Links
 

@@ -1,4 +1,4 @@
-name: Auto Build Claude Desktop
+name: Auto Build Unofficial Claude Desktop for Linux
 
 on:
   schedule:
@@ -105,7 +105,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('native/patchy-cnb/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src/native/patchy-cnb/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
       
@@ -131,7 +131,7 @@ jobs:
           path: |
             build/native-module/target
             build/native-module/*.node
-          key: ${{ runner.os }}-native-module-${{ hashFiles('native/patchy-cnb/**') }}
+          key: ${{ runner.os }}-native-module-${{ hashFiles('src/native/patchy-cnb/**') }}
           restore-keys: |
             ${{ runner.os }}-native-module-
       
@@ -215,9 +215,9 @@ jobs:
           
           # Create release notes
           cat > release_notes.md << EOF
-          ## Claude Desktop $VERSION for Linux
+          ## Unofficial Claude Desktop $VERSION for Linux
           
-          This release was automatically built from the official Claude Desktop Windows installer.
+          This release was automatically built from the official Claude Desktop Windows/MacOS installer.
           
           ### Installation
           
@@ -236,6 +236,6 @@ jobs:
           
           # Create GitHub release
           gh release create "v$VERSION" \
-            --title "Claude Desktop $VERSION" \
+            --title "Unofficial Claude Desktop $VERSION" \
             --notes-file release_notes.md \
             packages/*.deb

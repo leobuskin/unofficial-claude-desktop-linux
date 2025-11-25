@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Claude
+Comment=Unofficial Claude Desktop for Linux
+Exec=claude-desktop %u
+Icon=claude-desktop
+Type=Application
+Categories=Office;Utility;
+Terminal=false
+MimeTypes=x-scheme-handler/claude;

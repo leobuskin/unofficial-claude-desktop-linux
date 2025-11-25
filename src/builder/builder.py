@@ -101,9 +101,9 @@ class ClaudeDesktopBuilder:
         native_dir = self.work_dir / 'native-module'
         native_dir.mkdir(parents=True, exist_ok=True)
 
-        patchy_src = Path('native/patchy-cnb')
+        patchy_src = Path('src/native/patchy-cnb')
         if not patchy_src.exists():
-            msg = 'patchy-cnb not found at native/patchy-cnb'
+            msg = 'patchy-cnb not found at src/native/patchy-cnb'
             raise RuntimeError(msg)
 
         shutil.copytree(patchy_src, native_dir, dirs_exist_ok=True)
@@ -260,44 +260,19 @@ class ClaudeDesktopBuilder:
 
         return new_asar
 
-    def create_desktop_file(self) -> Path:
-        """Create .desktop file for Linux desktop integration."""
-        desktop_content = """[Desktop Entry]
-Name=Claude
-Comment=Unofficial Claude Desktop for Linux
-Exec=claude-desktop %u
-Icon=claude-desktop
-Type=Application
-Categories=Office;Utility;
-Terminal=false
-MimeTypes=x-scheme-handler/claude;
-"""
-        desktop_file = self.work_dir / 'claude-desktop.desktop'
-        desktop_file.write_text(desktop_content)
-        return desktop_file
-
-    def create_launcher_script(self) -> Path:
-        """Create launcher script."""
-        launcher_content = """#!/bin/bash
-APP_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
-
-# Launch with Wayland support if available
-exec "$APP_DIR/lib/claude-desktop/node_modules/electron/dist/electron" \\
-    "$APP_DIR/lib/claude-desktop/app.asar" \\
-    ${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations} \\
-    "$@"
-"""
-        launcher_file = self.work_dir / 'claude-desktop'
-        launcher_file.write_text(launcher_content)
-        launcher_file.chmod(0o755)
-        return launcher_file
-
     def assemble_package(self, resources_dir: Path, app_asar: Path) -> None:
         """Assemble the final package structure."""
         self.logger.info('Assembling package...')
 
         if self.output_dir.exists():
             shutil.rmtree(self.output_dir)
+
+        # Copy static resources (bin/, share/) from resources directory
+        static_resources = Path('resources')
+        if static_resources.exists():
+            shutil.copytree(static_resources, self.output_dir)
+        else:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
         lib_dir = self.output_dir / 'lib' / 'claude-desktop'
         lib_dir.mkdir(parents=True, exist_ok=True)
@@ -321,16 +296,6 @@ exec "$APP_DIR/lib/claude-desktop/node_modules/electron/dist/electron" \\
 
         # Apply source-specific post-assembly
         self.source_handler.post_assemble(lib_dir, resources_dir)
-
-        # Copy desktop file
-        desktop_dir = self.output_dir / 'share' / 'applications'
-        desktop_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(self.create_desktop_file(), desktop_dir / 'claude-desktop.desktop')
-
-        # Copy launcher
-        bin_dir = self.output_dir / 'bin'
-        bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(self.create_launcher_script(), bin_dir / 'claude-desktop')
 
         # Process icons
         self.source_handler.process_icons(resources_dir, self.output_dir)
