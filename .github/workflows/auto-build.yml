@@ -178,7 +178,7 @@ jobs:
         id: build
         run: |
           # Build the packages
-          claude-desktop-build build
+          claude-desktop-build build --source macos --patch-claude-code-platforms
           
           # Find the built .deb file
           DEB_FILE=$(find packages -name "*.deb" | head -1)
