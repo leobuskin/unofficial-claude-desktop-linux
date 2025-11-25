@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -11,6 +12,31 @@ from playwright_stealth import Stealth  # type: ignore[import-untyped]
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+
+def get_proxy_config() -> dict[str, str] | None:
+    """Get proxy configuration from environment variables.
+
+    Returns:
+        Proxy config dict for Playwright or None if no proxy configured.
+    """
+    # Check for proxy (prefer lowercase, fallback to uppercase)
+    proxy_url = os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY')
+    if not proxy_url:
+        proxy_url = os.environ.get('http_proxy') or os.environ.get('HTTP_PROXY')
+
+    if not proxy_url:
+        return None
+
+    proxy_config: dict[str, str] = {'server': proxy_url}
+
+    # Handle bypass list
+    no_proxy = os.environ.get('no_proxy') or os.environ.get('NO_PROXY')
+    if no_proxy:
+        proxy_config['bypass'] = no_proxy
+
+    logger.info('Using proxy: %s', proxy_url)
+    return proxy_config
 
 
 def extract_version_from_url(url: str) -> str | None:
@@ -59,10 +85,15 @@ def resolve_cloudflare_url(url: str, timeout: int = 30000) -> str:
         user_agent = (
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
         )
-        context = browser.new_context(
-            user_agent=user_agent,
-            accept_downloads=True,
-        )
+        context_options: dict[str, object] = {
+            'user_agent': user_agent,
+            'accept_downloads': True,
+        }
+        proxy_config = get_proxy_config()
+        if proxy_config:
+            context_options['proxy'] = proxy_config
+
+        context = browser.new_context(**context_options)
         page = context.new_page()
 
         # Apply stealth to avoid detection
