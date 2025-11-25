@@ -1,4 +1,4 @@
-"""Setup script for claude-desktop-linux."""
+"""Setup script for unofficial-claude-desktop-linux."""
 
 from setuptools import setup
 

@@ -9,9 +9,6 @@ CLAUDE_URL_WINDOWS = 'https://claude.ai/redirect/claudedotcom.v1.290130bf-1c36-4
 # Mac DMG (universal binary)
 CLAUDE_URL_MAC = 'https://claude.ai/redirect/claudedotcom.v1.290130bf-1c36-4eb0-9a93-2410ca43ae53/api/desktop/darwin/universal/dmg/latest/redirect'
 
-# Legacy URL (kept for compatibility)
-CLAUDE_URL = CLAUDE_URL_WINDOWS
-
 # Directory structure
 WORK_DIR = Path.cwd() / 'build'
 CACHE_DIR = Path.cwd() / '.cache' / 'downloads'

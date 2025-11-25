@@ -103,7 +103,7 @@ def clean() -> None:
 
 @cli.command()
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-@click.option('--repo', default='leobuskin/claude-desktop-linux', help='GitHub repository')
+@click.option('--repo', default='leobuskin/unofficial-claude-desktop-linux', help='GitHub repository')
 def monitor(*, output_json: bool, repo: str) -> None:
     """Check Claude Desktop version status."""
     mon = VersionMonitor(repo)
