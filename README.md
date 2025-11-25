@@ -22,7 +22,7 @@ Download the latest .deb package from the [releases page](https://github.com/leo
 
 ```bash
 # Download and install
-wget https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/download/{VERSION}/claude-desktop_{VERSION}_amd64.deb
+wget https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/download/v{VERSION}/claude-desktop_{VERSION}_amd64.deb
 sudo dpkg -i claude-desktop_*.deb
 ```
 
