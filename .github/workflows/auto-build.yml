@@ -38,6 +38,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright browsers
         run: playwright install chromium
 
@@ -156,9 +164,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright browsers
         run: playwright install chromium
-      
+
       - name: Update version
         run: python update-version.py
       
