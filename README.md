@@ -5,7 +5,7 @@
 [![Auto Build](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml/badge.svg)](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml)
 [![Latest Release](https://img.shields.io/github/v/release/leobuskin/unofficial-claude-desktop-linux)](https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/latest)
 
-Automated Linux packages for Claude Desktop, built from the official Windows installer. This project provides a maintenance-free way to install and update Claude Desktop on Debian/Ubuntu systems.
+Automated Linux packages for Claude Desktop, built from the official Windows/MacOS installers. This project provides a maintenance-free way to install and update Claude Desktop on Debian/Ubuntu systems.
 
 ## 🚀 Features
 

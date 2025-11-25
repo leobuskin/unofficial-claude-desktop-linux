@@ -351,9 +351,9 @@ class ClaudeDesktopBuilder:
         control_content = f"""Package: claude-desktop
 Version: {self.metadata['version']}
 Architecture: amd64
-Maintainer: Claude Desktop Linux Contributors
-Description: Desktop application for Claude.ai{source_note}
- Claude Desktop is the official desktop application for Claude.ai,
+Maintainer: Some Contributors
+Description: Unofficial Claude Desktop for Linux{source_note}
+ Unofficial Claude Desktop is the official desktop application for Claude.ai,
  repackaged for Linux systems with Electron bundled.
 """
         (debian_dir / 'control').write_text(control_content)

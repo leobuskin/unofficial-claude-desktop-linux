@@ -3,14 +3,14 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "unofficial-claude-desktop-linux-builder"
+name = "claude-desktop-builder"
 dynamic = ["version"]
 description = "Build Unofficial Claude Desktop for Linux from Windows/MacOS installers"
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
-    {name = "Claude Desktop Linux Contributors"},
+    {name = "Some Contributors"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

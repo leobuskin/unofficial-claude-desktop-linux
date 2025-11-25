@@ -1,4 +1,4 @@
-name: Auto Build Unofficial Claude Desktop for Linux
+name: Auto Build Claude Desktop for Linux
 
 on:
   schedule:
@@ -236,6 +236,6 @@ jobs:
           
           # Create GitHub release
           gh release create "v$VERSION" \
-            --title "Unofficial Claude Desktop $VERSION" \
+            --title "Claude Desktop $VERSION" \
             --notes-file release_notes.md \
             packages/*.deb
