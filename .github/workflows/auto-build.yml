@@ -44,17 +44,20 @@ jobs:
       - name: Check for new version
         id: version_check
         run: |
-          # Get latest version from Claude
+          # Get latest version from Claude (URL resolution only, no download)
           LATEST_VERSION=$(python -c "
           from claude_desktop_linux.detector import ClaudeVersionDetector
           detector = ClaudeVersionDetector()
-          info = detector.get_version_info()
-          print(info['version'])
+          version = detector.get_latest_version()
+          if version:
+              print(version)
+          else:
+              raise SystemExit('Failed to get latest version')
           ")
-          
+
           echo "Latest Claude version: $LATEST_VERSION"
           echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Check if we already built this version
           if gh release view "v$LATEST_VERSION" >/dev/null 2>&1; then
             echo "Version $LATEST_VERSION already built"

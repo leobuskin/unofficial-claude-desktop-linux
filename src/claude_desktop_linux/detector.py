@@ -15,6 +15,7 @@ from .downloader import (
     download_file,
     extract_version_from_url,
     get_cached_url,
+    get_latest_version,
 )
 
 
@@ -63,6 +64,17 @@ class ClaudeVersionDetector:
         """Get the version from cached URL without network request."""
         cached_url = get_cached_url(self.cache_dir, self.CACHE_KEY)
         return extract_version_from_url(cached_url) if cached_url else None
+
+    def get_latest_version(self) -> str | None:
+        """Get the latest version by resolving the redirect URL (no download).
+
+        This is lighter than get_version_info() as it only resolves the URL.
+
+        Returns:
+            Version string or None if not found
+
+        """
+        return get_latest_version(CLAUDE_URL_WINDOWS)
 
     def get_exe_hash(self, exe_path: Path) -> str:
         """Calculate SHA256 hash of the exe file."""

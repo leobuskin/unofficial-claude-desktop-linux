@@ -17,7 +17,8 @@ def extract_version_from_url(url: str) -> str | None:
     """Extract version from download URL.
 
     The resolved URL contains version info like:
-    https://downloads.claude.ai/releases/1.0.1217/Claude-Setup-x64.exe
+    - https://downloads.claude.ai/releases/win32/x64/1.0.1217/Claude-...
+    - https://downloads.claude.ai/releases/darwin/universal/1.0.1217/Claude-...
 
     Args:
         url: The resolved download URL
@@ -26,7 +27,8 @@ def extract_version_from_url(url: str) -> str | None:
         Version string or None if not found
 
     """
-    match = re.search(r'/releases/([0-9.]+)/', url)
+    # Match version number in path (e.g., /1.0.1217/)
+    match = re.search(r'/(\d+\.\d+\.\d+)/', url)
     if match:
         return match.group(1)
     return None
@@ -187,6 +189,26 @@ def download_file(
             pbar.update(len(chunk))
 
     return dest_path, download_url
+
+
+def get_latest_version(redirect_url: str) -> str | None:
+    """Get the latest version by resolving the redirect URL.
+
+    This only resolves the URL to extract the version, no download.
+
+    Args:
+        redirect_url: The Cloudflare-protected redirect URL
+
+    Returns:
+        Version string or None if not found
+
+    """
+    try:
+        resolved_url = resolve_cloudflare_url(redirect_url)
+        return extract_version_from_url(resolved_url)
+    except (OSError, RuntimeError) as e:
+        logger.warning('Failed to get latest version: %s', e)
+        return None
 
 
 def check_for_update(
