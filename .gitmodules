@@ -1,3 +1,0 @@
-[submodule "claude-desktop-linux-flake"]
-	path = claude-desktop-linux-flake
-	url = https://github.com/k3d3/claude-desktop-linux-flake.git

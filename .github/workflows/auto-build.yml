@@ -1,4 +1,4 @@
-name: Auto Build Claude Desktop
+name: Auto Build Claude Desktop for Linux
 
 on:
   schedule:
@@ -35,7 +35,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -e .
 
       - name: Cache Playwright browsers
@@ -54,9 +54,9 @@ jobs:
         run: |
           # Get latest version from Claude (URL resolution only, no download)
           LATEST_VERSION=$(python -c "
-          from claude_desktop_linux.detector import ClaudeVersionDetector
-          detector = ClaudeVersionDetector()
-          version = detector.get_latest_version()
+          from builder.sources import get_source_handler
+          handler = get_source_handler('windows')
+          version = handler.get_latest_version()
           if version:
               print(version)
           else:
@@ -83,9 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -107,7 +105,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('claude-desktop-linux-flake/patchy-cnb/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src/native/patchy-cnb/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
       
@@ -133,7 +131,7 @@ jobs:
           path: |
             build/native-module/target
             build/native-module/*.node
-          key: ${{ runner.os }}-native-module-${{ hashFiles('claude-desktop-linux-flake/patchy-cnb/**') }}
+          key: ${{ runner.os }}-native-module-${{ hashFiles('src/native/patchy-cnb/**') }}
           restore-keys: |
             ${{ runner.os }}-native-module-
       
@@ -148,6 +146,7 @@ jobs:
             rustc \
             imagemagick \
             icoutils \
+            icnsutils \
             rpm
       
       - name: Enable Corepack and install package managers
@@ -175,9 +174,6 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium
 
-      - name: Update version
-        run: python update-version.py
-      
       - name: Build packages
         id: build
         run: |
@@ -219,9 +215,9 @@ jobs:
           
           # Create release notes
           cat > release_notes.md << EOF
-          ## Claude Desktop $VERSION for Linux
+          ## Unofficial Claude Desktop $VERSION for Linux
           
-          This release was automatically built from the official Claude Desktop Windows installer.
+          This release was automatically built from the official Claude Desktop Windows/MacOS installer.
           
           ### Installation
           

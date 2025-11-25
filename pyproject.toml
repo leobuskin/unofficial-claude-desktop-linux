@@ -3,14 +3,14 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-desktop-linux"
+name = "claude-desktop-builder"
 dynamic = ["version"]
-description = "Build Claude Desktop for Linux from Windows installer"
+description = "Build Unofficial Claude Desktop for Linux from Windows/MacOS installers"
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
-    {name = "Claude Desktop Linux Contributors"},
+    {name = "Some Contributors"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -43,14 +43,13 @@ dev = [
 ]
 
 [project.scripts]
-claude-desktop-build = "claude_desktop_linux.cli:main"
-claude-desktop-monitor = "claude_desktop_linux.monitor:main"
+claude-desktop-build = "builder.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "claude_desktop_linux.__version__"}
+version = {attr = "builder.__version__"}
 
 [tool.ruff]
 line-length = 120
@@ -59,9 +58,9 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "S603",   # subprocess without shell=True (we're careful)
-    "S607",   # partial executable path (system commands)
-    "Q000",   # Single quotes (we use single quotes)
+    "S603",    # subprocess without shell=True (we're careful)
+    "S607",     # partial executable path (system commands)
+    "Q000",          # Single quotes (we use single quotes)
 ]
 
 [tool.ruff.format]

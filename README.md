@@ -5,7 +5,7 @@
 [![Auto Build](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml/badge.svg)](https://github.com/leobuskin/unofficial-claude-desktop-linux/actions/workflows/auto-build.yml)
 [![Latest Release](https://img.shields.io/github/v/release/leobuskin/unofficial-claude-desktop-linux)](https://github.com/leobuskin/unofficial-claude-desktop-linux/releases/latest)
 
-Automated Linux packages for Claude Desktop, built from the official Windows installer. This project provides a maintenance-free way to install and update Claude Desktop on Debian/Ubuntu systems.
+Automated Linux packages for Claude Desktop, built from the official Windows/MacOS installers. This project provides a maintenance-free way to install and update Claude Desktop on Debian/Ubuntu systems.
 
 ## 🚀 Features
 
@@ -46,7 +46,7 @@ If you want to build packages manually:
 
 ```bash
 # Clone the repository
-git clone --recursive https://github.com/leobuskin/unofficial-claude-desktop-linux.git
+git clone https://github.com/leobuskin/unofficial-claude-desktop-linux.git
 cd unofficial-claude-desktop-linux
 
 # Install dependencies
@@ -90,11 +90,15 @@ Contributions are welcome! The build process is fully automated, so contribution
 
 This project is licensed under the MIT License. Claude Desktop itself is proprietary software by Anthropic.
 
+## 🙏 Acknowledgments
+
+The native module stub (`src/native/patchy-cnb`) is derived from [claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) by k3d3, originally dual-licensed under MIT and Apache-2.0.
+
 ## 🔗 Links
 
 - [Official Claude Desktop](https://claude.ai/download)
 - [Anthropic](https://www.anthropic.com/)
-- [Original Nix implementation](https://github.com/k3d3/claude-desktop-linux-flake)
+- [Original Nix implementation](https://github.com/k3d3/claude-desktop-linux-flake) - inspiration and native module approach
 
 ---
 
