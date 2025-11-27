@@ -332,6 +332,29 @@ class ClaudeDesktopBuilder:
             electron_dst = lib_dir / 'node_modules'
             shutil.copytree(electron_src, electron_dst, dirs_exist_ok=True)
 
+            # Rename electron binary to 'claude' so app.isPackaged returns true
+            # (Electron sets isPackaged=false when binary is named 'electron')
+            electron_bin = electron_dst / 'electron' / 'dist' / 'electron'
+            claude_bin = electron_dst / 'electron' / 'dist' / 'claude'
+            if electron_bin.exists():
+                electron_bin.rename(claude_bin)
+
+            # Copy i18n files to electron resources directory
+            # When app.isPackaged=true, the app looks for i18n at process.resourcesPath
+            electron_resources = electron_dst / 'electron' / 'dist' / 'resources'
+            app_asar = lib_dir / 'app.asar'
+            if app_asar.exists():
+                with tempfile.TemporaryDirectory() as extract_dir:
+                    subprocess.run(
+                        ['npx', 'asar', 'extract', str(app_asar), extract_dir],
+                        check=True,
+                        capture_output=True,
+                    )
+                    i18n_src = Path(extract_dir) / 'resources' / 'i18n'
+                    if i18n_src.exists():
+                        for json_file in i18n_src.glob('*.json'):
+                            shutil.copy2(json_file, electron_resources / json_file.name)
+
     def build_deb_package(self) -> Path:
         """Build Debian package."""
         self.logger.info('Building .deb package...')

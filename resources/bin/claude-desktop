@@ -17,7 +17,8 @@ if [ -n "$PROXY_URL" ]; then
 fi
 
 # Launch with Wayland support if available
-exec "$APP_DIR/lib/claude-desktop/node_modules/electron/dist/electron" \
+# Note: Binary is renamed from 'electron' to 'claude' so app.isPackaged returns true
+exec "$APP_DIR/lib/claude-desktop/node_modules/electron/dist/claude" \
     "$APP_DIR/lib/claude-desktop/app.asar" \
     ${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations} \
     $PROXY_ARGS "$@"
