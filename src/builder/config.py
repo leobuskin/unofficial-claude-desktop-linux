@@ -15,13 +15,11 @@ CACHE_DIR = Path.cwd() / '.cache' / 'downloads'
 OUTPUT_DIR = Path.cwd() / 'claude-desktop'
 PACKAGE_DIR = Path.cwd() / 'packages'
 
-# Package dependencies
+# Package dependencies (Debian/Ubuntu only)
 # For Windows source: needs icoutils for icon extraction
-DNF_PACKAGES = ['p7zip', 'p7zip-plugins', 'nodejs', 'rust', 'cargo', 'ImageMagick', 'icoutils']
 DEBIAN_PACKAGES = ['p7zip-full', 'nodejs', 'cargo', 'rustc', 'imagemagick', 'icoutils']
 
 # For Mac source: no icoutils needed (uses .icns files)
-DNF_PACKAGES_MAC = ['p7zip', 'p7zip-plugins', 'nodejs', 'rust', 'cargo', 'ImageMagick']
 DEBIAN_PACKAGES_MAC = ['p7zip-full', 'nodejs', 'cargo', 'rustc', 'imagemagick']
 
 # Native module name (using Nix's approach)

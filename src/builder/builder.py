@@ -13,8 +13,6 @@ from typing import Any
 from .config import (
     DEBIAN_PACKAGES,
     DEBIAN_PACKAGES_MAC,
-    DNF_PACKAGES,
-    DNF_PACKAGES_MAC,
     OUTPUT_DIR,
     PACKAGE_DIR,
     WORK_DIR,
@@ -54,36 +52,26 @@ class ClaudeDesktopBuilder:
             raise RuntimeError(msg)
         return self._metadata
 
-    def detect_package_manager(self) -> tuple[str, list[str]]:
-        """Detect the system package manager and required packages."""
+    def get_required_packages(self) -> list[str]:
+        """Get the list of required packages for the current source."""
         is_mac_source = isinstance(self.source_handler, MacSource)
-
-        if shutil.which('dnf'):
-            packages = DNF_PACKAGES_MAC if is_mac_source else DNF_PACKAGES
-            return 'dnf', packages
-        if shutil.which('apt'):
-            packages = DEBIAN_PACKAGES_MAC if is_mac_source else DEBIAN_PACKAGES
-            return 'apt', packages
-
-        msg = 'No supported package manager found (dnf or apt)'
-        raise RuntimeError(msg)
+        return DEBIAN_PACKAGES_MAC if is_mac_source else DEBIAN_PACKAGES
 
     def check_dependencies(self) -> None:
         """Check and install required system dependencies."""
-        pkg_manager, packages = self.detect_package_manager()
+        if not shutil.which('apt'):
+            msg = 'apt package manager not found. This tool only supports Debian/Ubuntu systems.'
+            raise RuntimeError(msg)
 
+        packages = self.get_required_packages()
         required_commands = self.source_handler.required_commands
         missing = [cmd for cmd in required_commands if not shutil.which(cmd)]
 
         if missing:
             self.logger.warning('Missing required commands: %s', ', '.join(missing))
-            self.logger.info('Installing dependencies using %s...', pkg_manager)
-
-            if pkg_manager == 'dnf':
-                subprocess.run(['sudo', 'dnf', 'install', '-y', *packages], check=True)
-            else:
-                subprocess.run(['sudo', 'apt', 'update'], check=True)
-                subprocess.run(['sudo', 'apt', 'install', '-y', *packages], check=True)
+            self.logger.info('Installing dependencies using apt...')
+            subprocess.run(['sudo', 'apt', 'update'], check=True)
+            subprocess.run(['sudo', 'apt', 'install', '-y', *packages], check=True)
 
         if not shutil.which('pnpm'):
             self.logger.info('Installing pnpm...')
@@ -385,70 +373,7 @@ Description: Unofficial Claude Desktop for Linux{source_note}
 
         return self.package_dir / f'{pkg_name}.deb'
 
-    def build_rpm_package(self) -> Path:
-        """Build RPM package."""
-        self.logger.info('Building .rpm package...')
-
-        rpm_root = self.package_dir / 'rpmbuild'
-        for subdir in ['BUILD', 'RPMS', 'SOURCES', 'SPECS', 'SRPMS']:
-            (rpm_root / subdir).mkdir(parents=True, exist_ok=True)
-
-        tar_name = f'claude-desktop-{self.metadata["version"]}.tar.gz'
-        tar_path = rpm_root / 'SOURCES' / tar_name
-
-        subprocess.run(
-            ['tar', 'czf', str(tar_path), '-C', str(self.output_dir.parent), self.output_dir.name],
-            check=True,
-        )
-
-        spec_content = f"""Name: claude-desktop
-Version: {self.metadata['version']}
-Release: 1%{{?dist}}
-Summary: Desktop application for Claude.ai
-License: Proprietary
-URL: https://claude.ai
-
-%description
-Claude Desktop is the official desktop application for Claude.ai,
-repackaged for Linux systems with Electron bundled.
-
-%prep
-%setup -q
-
-%install
-mkdir -p %{{buildroot}}/usr
-cp -r * %{{buildroot}}/usr/
-
-%files
-/usr/bin/claude-desktop
-/usr/lib/claude-desktop
-/usr/share/applications/claude-desktop.desktop
-/usr/share/icons/hicolor/*/apps/claude-desktop.png
-
-%changelog
-* $(date +"%a %b %d %Y") Claude Desktop Linux Contributors
-- Automated build of version {self.metadata['version']}
-"""
-
-        spec_file = rpm_root / 'SPECS' / 'claude-desktop.spec'
-        spec_file.write_text(spec_content)
-
-        subprocess.run(
-            ['rpmbuild', '-bb', str(spec_file), '--define', f'_topdir {rpm_root}'],
-            check=True,
-        )
-
-        rpm_files = list((rpm_root / 'RPMS').rglob('*.rpm'))
-        if not rpm_files:
-            msg = 'No RPM file found after build'
-            raise RuntimeError(msg)
-
-        rpm_file = self.package_dir / rpm_files[0].name
-        shutil.move(rpm_files[0], rpm_file)
-
-        return rpm_file
-
-    def build(self, *, download: bool = True, force_download: bool = False) -> Path | None:
+    def build(self, *, download: bool = True, force_download: bool = False) -> Path:
         """Run the complete build process.
 
         Args:
@@ -456,7 +381,7 @@ cp -r * %{{buildroot}}/usr/
             force_download: Force re-download even if cached
 
         Returns:
-            Path to built package, or None if package type not supported
+            Path to built .deb package
 
         """
         self.logger.info('Starting Claude Desktop Linux build from %s...', self.source_handler.name)
@@ -501,16 +426,10 @@ cp -r * %{{buildroot}}/usr/
         # Assemble package
         self.assemble_package(resources_dir, app_asar)
 
-        # Build distribution packages
+        # Build Debian package
         self.package_dir.mkdir(parents=True, exist_ok=True)
-
-        pkg_manager, _ = self.detect_package_manager()
-        if pkg_manager == 'apt':
-            package = self.build_deb_package()
-            self.logger.info('Built Debian package: %s', package)
-        else:
-            package = self.build_rpm_package()
-            self.logger.info('Built RPM package: %s', package)
+        package = self.build_deb_package()
+        self.logger.info('Built Debian package: %s', package)
 
         self.logger.info('Build complete!')
         return package
