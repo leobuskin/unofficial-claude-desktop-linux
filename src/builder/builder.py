@@ -18,6 +18,7 @@ from .config import (
     WORK_DIR,
 )
 from .sources import MacSource, get_source_handler
+from .templates import write_resources
 
 
 class ClaudeDesktopBuilder:
@@ -255,12 +256,10 @@ class ClaudeDesktopBuilder:
         if self.output_dir.exists():
             shutil.rmtree(self.output_dir)
 
-        # Copy static resources (bin/, share/) from resources directory
-        static_resources = Path('resources')
-        if static_resources.exists():
-            shutil.copytree(static_resources, self.output_dir)
-        else:
-            self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate resource files (launcher script, desktop entry)
+        write_resources(self.output_dir)
 
         lib_dir = self.output_dir / 'lib' / 'claude-desktop'
         lib_dir.mkdir(parents=True, exist_ok=True)
@@ -319,13 +318,6 @@ class ClaudeDesktopBuilder:
             electron_src = tmp_path / 'node_modules'
             electron_dst = lib_dir / 'node_modules'
             shutil.copytree(electron_src, electron_dst, dirs_exist_ok=True)
-
-            # Rename electron binary to 'claude' so app.isPackaged returns true
-            # (Electron sets isPackaged=false when binary is named 'electron')
-            electron_bin = electron_dst / 'electron' / 'dist' / 'electron'
-            claude_bin = electron_dst / 'electron' / 'dist' / 'claude'
-            if electron_bin.exists():
-                electron_bin.rename(claude_bin)
 
             # Copy i18n files to electron resources directory
             # When app.isPackaged=true, the app looks for i18n at process.resourcesPath
