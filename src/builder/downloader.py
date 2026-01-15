@@ -176,8 +176,12 @@ def download_file(
     resolve_cloudflare: bool = True,
     cache_dir: Path | None = None,
     cache_key: str | None = None,
+    max_retries: int = 5,
+    retry_delay: float = 2.0,
 ) -> tuple[Path, str]:
     """Download a file, optionally resolving Cloudflare protection first.
+
+    Supports resumable downloads and automatic retries on connection failures.
 
     Args:
         url: URL to download from (may be Cloudflare-protected redirect)
@@ -185,11 +189,17 @@ def download_file(
         resolve_cloudflare: Whether to resolve Cloudflare redirects first
         cache_dir: Optional directory for URL caching
         cache_key: Optional key for URL cache (e.g., 'windows', 'mac')
+        max_retries: Maximum number of retry attempts on connection failure
+        retry_delay: Initial delay between retries (doubles each attempt)
 
     Returns:
         Tuple of (path to downloaded file, resolved download URL)
 
     """
+    import time
+    from http.client import IncompleteRead
+    from urllib3.exceptions import ProtocolError
+
     download_url = url
 
     if resolve_cloudflare:
@@ -204,22 +214,103 @@ def download_file(
 
     logger.info('Downloading from: %s', download_url)
 
-    response = requests.get(download_url, stream=True, timeout=60)
-    response.raise_for_status()
-
-    total_size = int(response.headers.get('Content-Length', 0))
-
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    partial_path = dest_path.with_suffix(dest_path.suffix + '.partial')
 
-    with (
-        dest_path.open('wb') as f,
-        tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading') as pbar,
-    ):
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
-            pbar.update(len(chunk))
+    # Check for existing partial download
+    downloaded_size = 0
+    if partial_path.exists():
+        downloaded_size = partial_path.stat().st_size
+        logger.info('Resuming download from %d bytes', downloaded_size)
 
-    return dest_path, download_url
+    for attempt in range(max_retries):
+        try:
+            headers = {}
+            if downloaded_size > 0:
+                headers['Range'] = f'bytes={downloaded_size}-'
+
+            response = requests.get(
+                download_url, stream=True, timeout=60, headers=headers
+            )
+
+            # Handle range request response
+            if response.status_code == 416:
+                # Range not satisfiable - file might be complete or server doesn't support ranges
+                logger.warning('Range request failed, restarting download')
+                downloaded_size = 0
+                if partial_path.exists():
+                    partial_path.unlink()
+                response = requests.get(download_url, stream=True, timeout=60)
+
+            response.raise_for_status()
+
+            # Calculate total size
+            if response.status_code == 206:
+                # Partial content - get total from Content-Range header
+                content_range = response.headers.get('Content-Range', '')
+                if '/' in content_range:
+                    total_size = int(content_range.split('/')[-1])
+                else:
+                    total_size = downloaded_size + int(
+                        response.headers.get('Content-Length', 0)
+                    )
+            else:
+                total_size = int(response.headers.get('Content-Length', 0))
+                # Server doesn't support ranges, start fresh
+                if downloaded_size > 0:
+                    logger.info('Server does not support resume, restarting download')
+                    downloaded_size = 0
+                    if partial_path.exists():
+                        partial_path.unlink()
+
+            # Open file in append mode if resuming, else write mode
+            mode = 'ab' if downloaded_size > 0 else 'wb'
+
+            with (
+                partial_path.open(mode) as f,
+                tqdm(
+                    total=total_size,
+                    initial=downloaded_size,
+                    unit='B',
+                    unit_scale=True,
+                    desc='Downloading',
+                ) as pbar,
+            ):
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+                    downloaded_size += len(chunk)
+
+            # Download complete - rename partial file to final destination
+            partial_path.rename(dest_path)
+            return dest_path, download_url
+
+        except (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+            IncompleteRead,
+            ProtocolError,
+            OSError,
+        ) as e:
+            current_delay = retry_delay * (2**attempt)
+            if attempt < max_retries - 1:
+                logger.warning(
+                    'Download interrupted: %s. Retrying in %.1fs (attempt %d/%d)',
+                    e,
+                    current_delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                # Update downloaded_size from partial file for resume
+                if partial_path.exists():
+                    downloaded_size = partial_path.stat().st_size
+                time.sleep(current_delay)
+            else:
+                logger.error('Download failed after %d attempts: %s', max_retries, e)
+                raise
+
+    # Should not reach here, but just in case
+    raise RuntimeError(f'Download failed after {max_retries} attempts')
 
 
 def get_latest_version(redirect_url: str) -> str | None:
