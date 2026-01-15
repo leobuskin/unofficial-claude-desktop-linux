@@ -24,10 +24,26 @@ if [ -n "$PROXY_URL" ]; then
     fi
 fi
 
+# Fix for folder picker on older systems (Ubuntu 20.04 and similar)
+# xdg-desktop-portal < 1.8.0 doesn't properly support openDirectory dialogs
+# Setting required version to 4 forces fallback to native GTK dialogs
+# See: https://github.com/electron/electron/issues/48356
+XDG_PORTAL_FIX=""
+if command -v dpkg &> /dev/null; then
+    PORTAL_VERSION=$(dpkg -s xdg-desktop-portal 2>/dev/null | grep "^Version:" | sed 's/Version: //' | cut -d'-' -f1)
+    if [ -n "$PORTAL_VERSION" ]; then
+        REQUIRED_VERSION="1.8.0"
+        if [ "$(printf '%s\\n' "$REQUIRED_VERSION" "$PORTAL_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+            XDG_PORTAL_FIX="--xdg-portal-required-version=4"
+        fi
+    fi
+fi
+
 # Launch with Wayland support if available
 exec "$APP_DIR/lib/claude-desktop/node_modules/electron/dist/electron" \\
     "$APP_DIR/lib/claude-desktop/app.asar" \\
     ${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations} \\
+    $XDG_PORTAL_FIX \\
     $PROXY_ARGS "$@"
 """
 

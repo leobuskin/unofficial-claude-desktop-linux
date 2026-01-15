@@ -158,12 +158,12 @@ class ClaudeDesktopBuilder:
 
         content = index_js.read_text()
 
-        # Original getPlatform function only handles darwin and win32.
+        # Original getHostPlatform function only handles darwin and win32.
         # We need to add Linux support before the throw.
 
-        # Pattern to match the getPlatform function (split for readability)
+        # Pattern to match the getHostPlatform function (split for readability)
         old_pattern = (
-            r'getPlatform\(\)\{const e=process\.arch;'
+            r'getHostPlatform\(\)\{const e=process\.arch;'
             r'if\(process\.platform==="darwin"\)'
             r'return e==="arm64"\?"darwin-arm64":"darwin-x64";'
             r'if\(process\.platform==="win32"\)return"win32-x64";'
@@ -172,7 +172,7 @@ class ClaudeDesktopBuilder:
 
         # New code adds Linux support
         new_code = (
-            'getPlatform(){const e=process.arch;'
+            'getHostPlatform(){const e=process.arch;'
             'if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";'
             'if(process.platform==="win32")return"win32-x64";'
             'if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";'
