@@ -114,138 +114,190 @@ class ClaudeDesktopBuilder:
 
         return built_modules[0]
 
+    def _apply_patch(self, content: str, name: str, pattern: str, replacement: str) -> str:
+        """Apply a single regex patch, raising on failure.
+
+        Every patch MUST match. If the upstream code changed and a pattern no longer
+        matches, the build fails immediately so we can update the patch.
+        """
+        new_content = re.sub(pattern, replacement, content)
+        if new_content == content:
+            msg = f'Patch "{name}" failed: pattern not found in source'
+            raise RuntimeError(msg)
+        self.logger.info('Applied patch: %s', name)
+        return new_content
+
     def _patch_title_bar(self, app_dir: Path) -> None:
         """Apply title bar patch to enable it on Linux."""
         self.logger.info('Applying title bar patch...')
 
         search_base = app_dir / '.vite' / 'renderer' / 'main_window' / 'assets'
         if not search_base.exists():
-            self.logger.warning('Could not find assets directory for title bar patch')
-            return
+            raise RuntimeError('Title bar patch: assets directory not found')
 
         main_window_files = list(search_base.glob('MainWindowPage-*.js'))
         if len(main_window_files) != 1:
-            self.logger.warning('Expected 1 MainWindowPage file, found %d', len(main_window_files))
-            return
+            raise RuntimeError(f'Title bar patch: expected 1 MainWindowPage file, found {len(main_window_files)}')
 
         target_file = main_window_files[0]
         content = target_file.read_text()
 
         # Change if(!isWindows && isMainWindow) to if(isWindows && isMainWindow)
-        pattern = r'if\(!(\w+)\s*&&\s*(\w+)\)'
-        replacement = r'if(\1 && \2)'
+        content = self._apply_patch(
+            content, 'title-bar-negation',
+            r'if\(!(\w+)\s*&&\s*(\w+)\)',
+            r'if(\1 && \2)',
+        )
+        target_file.write_text(content)
 
-        new_content = re.sub(pattern, replacement, content)
+    def _patch_index_js(self, app_dir: Path) -> None:
+        """Apply all patches to .vite/build/index.js.
 
-        if new_content != content:
-            target_file.write_text(new_content)
-            self.logger.info('Title bar patch applied successfully')
-        else:
-            self.logger.warning('Title bar patch pattern not found')
-
-    def _patch_browser_window_frame(self, app_dir: Path) -> None:
-        """Patch BrowserWindow options and close behavior for Linux.
-
-        Fixes:
-        1. titleBarStyle:"hidden" with no overlay → no window controls on Linux.
-           Cleared so the OS provides standard window decorations.
-        2. Close handler only quits on Windows (gs check). On Linux the window hides
-           but there's no tray to restore it. Patch to include Linux in the quit path.
-        3. Tray icon: Linux needs dark/light variant selection like Windows, since
-           macOS template image auto-inversion doesn't work on Linux.
+        All patches use _apply_patch which raises on failure. This ensures the
+        build fails immediately if upstream code changes break any pattern.
         """
-        self.logger.info('Applying BrowserWindow frame patch...')
-
-        build_dir = app_dir / '.vite' / 'build'
-        if not build_dir.exists():
-            self.logger.warning('Build directory not found for frame patch')
-            return
-
-        patched_count = 0
-        for js_file in build_dir.glob('*.js'):
-            content = js_file.read_text()
-            original = content
-
-            # Replace titleBarStyle:"hidden"/"hiddenInset" with "default" for native
-            # decorations. Empty string is not a valid Electron value and strips the
-            # close button on Linux/Wayland.
-            content = re.sub(
-                r'titleBarStyle\s*:\s*"hidden(?:Inset)?"', 'titleBarStyle:"default"', content
-            )
-
-            # Patch close handler: gs&& → (gs||process.platform==="linux")&&
-            # so Linux also quits on close when tray is disabled (instead of hiding
-            # to a non-existent tray).
-            # Original: if(gs&&!Dr("menuBarEnabled")){...I0();return}l.preventDefault()
-            content = re.sub(
-                r'if\(gs&&!(\w+)\("menuBarEnabled"\)\)',
-                r'if((gs||process.platform==="linux")&&!\1("menuBarEnabled"))',
-                content,
-            )
-
-            # Patch tray icon selection for Linux dark mode support.
-            # Original: gs?e=...Dark.ico:...ico:e="TrayIconTemplate.png"
-            # Change to also check dark mode on Linux and use the Dark variant.
-            content = re.sub(
-                r':e="TrayIconTemplate\.png"',
-                ':e=ke.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"',
-                content,
-            )
-
-            # Patch tray recreation to update icon in-place instead of destroy+recreate.
-            # The destroy/recreate cycle causes DBus "already exported" errors on Linux
-            # because the StatusNotifierItem registration isn't cleaned up fast enough.
-            # Original: if(dh&&(dh.destroy(),dh=null),!!t){if(dh=new ke.Tray(...)
-            # Patched: if existing tray and still enabled, just update the image.
-            content = re.sub(
-                r'if\(dh&&\(dh\.destroy\(\),dh=null\),!!t\)\{if\(dh=new ke\.Tray\(ke\.nativeImage\.createFromPath\(r\)\)',
-                'if(dh&&t){dh.setImage(ke.nativeImage.createFromPath(r))}else if(dh&&(dh.destroy(),dh=null),!!t){if(dh=new ke.Tray(ke.nativeImage.createFromPath(r))',
-                content,
-            )
-
-            if content != original:
-                js_file.write_text(content)
-                patched_count += 1
-
-        if patched_count:
-            self.logger.info('BrowserWindow frame patch applied to %d files', patched_count)
-        else:
-            self.logger.warning('No files needed BrowserWindow frame patching')
-
-    def _patch_claude_code_platform_detection(self, app_dir: Path) -> None:
-        """Patch getHostPlatform() to support Linux for Claude Code.
-
-        Inserts a Linux platform check before the 'Unsupported platform' throw
-        inside getHostPlatform(). Uses a targeted insertion approach that survives
-        upstream changes to other platform branches (e.g. added arm64 for win32).
-        """
-        self.logger.info('Applying Claude Code platforms patch...')
+        self.logger.info('Applying index.js patches...')
 
         index_js = app_dir / '.vite' / 'build' / 'index.js'
         if not index_js.exists():
-            self.logger.warning('index.js not found, skipping Claude Code patch')
-            return
+            raise RuntimeError('index.js not found at .vite/build/index.js')
 
         content = index_js.read_text()
 
-        # Check if already patched (look specifically inside getHostPlatform)
-        if 'process.platform==="linux")return e==="arm64"?"linux-arm64"' in content:
-            self.logger.info('Claude Code platforms patch already applied, skipping')
-            return
+        # --- Claude Code platform detection ---
+        # Insert Linux check before the "Unsupported platform" throw in getHostPlatform().
+        if self.patch_claude_code_platforms:
+            linux_check = 'if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";'
+            content = self._apply_patch(
+                content, 'claude-code-platform-detection',
+                r'(getHostPlatform\(\)\{const e=process\.arch;.*?)'
+                r'(throw new Error\(`Unsupported platform: \$\{process\.platform\}-\$\{e\}`\))',
+                rf'\g<1>{linux_check}\2',
+            )
 
-        # Insert Linux check right before the throw inside getHostPlatform().
-        # We match the throw pattern that follows the win32 check and prepend the linux branch.
-        linux_check = 'if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";'
-        throw_pattern = r'(getHostPlatform\(\)\{const e=process\.arch;.*?)(throw new Error\(`Unsupported platform: \$\{process\.platform\}-\$\{e\}`\))'
+        # --- Window frame: titleBarStyle ---
+        # Replace "hidden"/"hiddenInset" with "default" for native window decorations.
+        content = self._apply_patch(
+            content, 'title-bar-style',
+            r'titleBarStyle\s*:\s*"hidden(?:Inset)?"',
+            'titleBarStyle:"default"',
+        )
 
-        new_content = re.sub(throw_pattern, rf'\g<1>{linux_check}\2', content)
+        # --- Close handler: quit on Linux ---
+        # Original only quits on Windows (gs). Include Linux so closing the window
+        # actually exits the app when tray is disabled.
+        content = self._apply_patch(
+            content, 'close-handler-linux-quit',
+            r'if\(gs&&!(\w+)\("menuBarEnabled"\)\)',
+            r'if((gs||process.platform==="linux")&&!\1("menuBarEnabled"))',
+        )
 
-        if new_content != content:
-            index_js.write_text(new_content)
-            self.logger.info('Claude Code platforms patch applied successfully')
-        else:
-            self.logger.error('Claude Code platforms patch: getHostPlatform throw pattern not found')
-            raise RuntimeError('Failed to apply Claude Code platforms patch: pattern not found')
+        # --- Tray icon: dark mode on Linux ---
+        # macOS template images auto-invert; Linux needs explicit dark/light selection.
+        content = self._apply_patch(
+            content, 'tray-icon-dark-mode',
+            r':e="TrayIconTemplate\.png"',
+            ':e=ke.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"',
+        )
+
+        # --- Tray: update icon in-place ---
+        # Destroy+recreate causes DBus "already exported" errors on Linux.
+        # If tray exists and is still enabled, just update the image.
+        content = self._apply_patch(
+            content, 'tray-icon-inplace-update',
+            r'if\(dh&&\(dh\.destroy\(\),dh=null\),!!t\)\{if\(dh=new ke\.Tray\(ke\.nativeImage\.createFromPath\(r\)\)',
+            'if(dh&&t){dh.setImage(ke.nativeImage.createFromPath(r))}'
+            'else if(dh&&(dh.destroy(),dh=null),!!t)'
+            '{if(dh=new ke.Tray(ke.nativeImage.createFromPath(r))',
+        )
+
+        # --- Platform label: "Unsupported Platform" → "Linux" ---
+        content = self._apply_patch(
+            content, 'platform-label-linux',
+            r'(switch\(process\.platform\)\{case"darwin":return"macOS";case"win32":return"Windows";)'
+            r'default:return"Unsupported Platform"',
+            r'\1case"linux":return"Linux";default:return"Unsupported Platform"',
+        )
+
+        # --- File dialog: allow openDirectory on Linux ---
+        # macOS allows both openFile+openDirectory, Linux/Windows only openFile.
+        # Linux GTK supports openDirectory fine; enable it.
+        content = self._apply_patch(
+            content, 'file-dialog-open-directory',
+            r'process\.platform==="darwin"\?'
+            r'\["openFile","openDirectory","multiSelections"\]'
+            r':\["openFile","multiSelections"\]',
+            'process.platform==="win32"'
+            '?["openFile","multiSelections"]'
+            ':["openFile","openDirectory","multiSelections"]',
+        )
+
+        # --- Chrome extension: native messaging host paths for Linux ---
+        # Original returns [] for non-darwin/win32. Add Linux browser paths.
+        content = self._apply_patch(
+            content, 'chrome-native-host-paths',
+            r'(return process\.platform==="win32"\?\[\{name:"All",path:Ae\.join\(ke\.app\.getPath\("userData"\),"ChromeNativeHost"\)\}\]:)\[\]',
+            r'\1(()=>{const h=FCt.homedir();'
+            r'const c=Ae.join(h,".config");'
+            r'return[{name:"Chrome",path:Ae.join(c,"google-chrome","NativeMessagingHosts")},'
+            r'{name:"Brave",path:Ae.join(c,"BraveSoftware","Brave-Browser","NativeMessagingHosts")},'
+            r'{name:"Edge",path:Ae.join(c,"microsoft-edge","NativeMessagingHosts")},'
+            r'{name:"Chromium",path:Ae.join(c,"chromium","NativeMessagingHosts")},'
+            r'{name:"Vivaldi",path:Ae.join(c,"vivaldi","NativeMessagingHosts")}]})()',
+        )
+
+        # --- Chrome extension: browser profile paths for Linux ---
+        # Original returns [] for non-darwin/win32. Add Linux profile directories.
+        content = self._apply_patch(
+            content, 'chrome-browser-profile-paths',
+            r'(if\(process\.platform==="win32"\)\{const e=ut\.join\(t,"AppData","Local"\),'
+            r'r=ut\.join\(t,"AppData","Roaming"\);return\[.*?\]\})'
+            r'return\[\]',
+            r'\1{const e=ut.join(t,".config");'
+            r'return[{name:"Chrome",path:ut.join(e,"google-chrome")},'
+            r'{name:"Brave",path:ut.join(e,"BraveSoftware","Brave-Browser")},'
+            r'{name:"Edge",path:ut.join(e,"microsoft-edge")},'
+            r'{name:"Chromium",path:ut.join(e,"chromium")},'
+            r'{name:"Vivaldi",path:ut.join(e,"vivaldi")}]}',
+        )
+
+        # --- Chrome extension: install on Linux ---
+        # Original rejects non-macOS. Add Linux support using External Extensions dir.
+        content = self._apply_patch(
+            content, 'chrome-extension-install-linux',
+            r'if\(process\.platform!=="darwin"\)return\{status:x_\.Error,'
+            r'error:`Unsupported platform: \$\{process\.platform\}\. Only macOS is supported\.`\}',
+            'if(process.platform!=="darwin"&&process.platform!=="linux")'
+            'return{status:x_.Error,'
+            'error:`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`}',
+        )
+
+        # --- Chrome extension: Chrome base path for Linux ---
+        # FG is hardcoded to macOS Chrome path. On Linux it should be ~/.config/google-chrome.
+        content = self._apply_patch(
+            content, 'chrome-extension-base-path',
+            r'FG=ut\.join\(Ii\.homedir\(\),"Library","Application Support","Google","Chrome"\)',
+            'FG=process.platform==="linux"'
+            '?ut.join(Ii.homedir(),".config","google-chrome")'
+            ':ut.join(Ii.homedir(),"Library","Application Support","Google","Chrome")',
+        )
+
+        # --- DXT extension platform compatibility: treat Linux as compatible ---
+        # Extension manifests declare compatibility.platforms (e.g. ["darwin","win32"]).
+        # xGr() checks if process.platform is in that list and rejects "linux".
+        # Since Linux shares Node/Python runtimes with macOS, extensions that work
+        # on macOS will generally work on Linux. Patch: also accept "linux" when
+        # "darwin" is listed.
+        content = self._apply_patch(
+            content, 'dxt-platform-compat-linux',
+            r'return t\.compatibility\.platforms\.some\(n=>n===e\)\?null:"platform-mismatch"\}',
+            'return t.compatibility.platforms.some(n=>n===e)'
+            '||(e==="linux"&&t.compatibility.platforms.some(n=>n==="darwin"))'
+            '?null:"platform-mismatch"}',
+        )
+
+        index_js.write_text(content)
+        self.logger.info('All index.js patches applied successfully')
 
     def patch_app_asar(self, resources_dir: Path, native_module: Path) -> Path:
         """Patch app.asar with native module and apply patches.
@@ -295,13 +347,8 @@ class ClaudeDesktopBuilder:
             # Apply title bar patch (renderer/UI layer)
             self._patch_title_bar(app_extract)
 
-            # Apply Claude Code platforms patch if requested (before frame patch,
-            # since frame patch also modifies index.js and could affect idempotency checks)
-            if self.patch_claude_code_platforms:
-                self._patch_claude_code_platform_detection(app_extract)
-
-            # Apply BrowserWindow frame patch (main process layer)
-            self._patch_browser_window_frame(app_extract)
+            # Apply all index.js patches (main process layer)
+            self._patch_index_js(app_extract)
 
             # Repack app.asar
             new_asar = self.work_dir / 'app.asar'
@@ -382,12 +429,16 @@ class ClaudeDesktopBuilder:
             electron_dst = lib_dir / 'node_modules'
             shutil.copytree(electron_src, electron_dst, dirs_exist_ok=True)
 
-            # Copy i18n files and tray icons to electron resources directory.
-            # When app.isPackaged=true, the app resolves these at process.resourcesPath
-            # which maps to node_modules/electron/dist/resources/.
+            # Electron's process.resourcesPath points to node_modules/electron/dist/resources/.
+            # The app expects app.asar at that location (for MCP runtime, i18n, tray icons).
+            # Symlink app.asar there so it's found at process.resourcesPath/app.asar.
             electron_resources = electron_dst / 'electron' / 'dist' / 'resources'
             app_asar = lib_dir / 'app.asar'
+            resources_asar = electron_resources / 'app.asar'
             if app_asar.exists():
+                # Relative symlink: ../../../../app.asar (resources -> dist -> electron -> node_modules -> lib_dir)
+                resources_asar.symlink_to(os.path.relpath(app_asar, electron_resources))
+
                 with tempfile.TemporaryDirectory() as extract_dir:
                     subprocess.run(
                         ['npx', 'asar', 'extract', str(app_asar), extract_dir],
@@ -403,6 +454,31 @@ class ClaudeDesktopBuilder:
                     resources_src = Path(extract_dir) / 'resources'
                     for tray_file in resources_src.glob('Tray*'):
                         shutil.copy2(tray_file, electron_resources / tray_file.name)
+
+            # Create chrome-native-host wrapper that delegates to the Claude Code binary.
+            # Claude Desktop looks for this at process.resourcesPath/chrome-native-host
+            # to bridge the Chrome extension via native messaging.
+            # Priority: 1) CCD binary (bundled, managed by Claude Desktop)
+            #           2) Standalone Claude Code (user-installed)
+            native_host = electron_resources / 'chrome-native-host'
+            native_host.write_text(
+                '#!/bin/sh\n'
+                '# Bridge Chrome extension to Claude Code binary (claude --chrome-native-host)\n'
+                '# Try CCD (Claude Code for Desktop) first, then standalone Claude Code\n'
+                'CCD_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/Claude/claude-code"\n'
+                'if [ -d "$CCD_DIR" ]; then\n'
+                '  LATEST=$(ls -1 "$CCD_DIR" | sort -V | tail -1)\n'
+                '  if [ -n "$LATEST" ] && [ -x "$CCD_DIR/$LATEST/claude" ]; then\n'
+                '    exec "$CCD_DIR/$LATEST/claude" --chrome-native-host\n'
+                '  fi\n'
+                'fi\n'
+                'if command -v claude >/dev/null 2>&1; then\n'
+                '  exec claude --chrome-native-host\n'
+                'fi\n'
+                'echo "Claude Code binary not found" >&2\n'
+                'exit 1\n'
+            )
+            native_host.chmod(0o755)
 
     def build_deb_package(self) -> Path:
         """Build Debian package."""
