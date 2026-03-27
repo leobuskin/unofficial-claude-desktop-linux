@@ -79,7 +79,7 @@ class ClaudeDesktopBuilder:
             subprocess.run(['npm', 'install', '-g', 'pnpm'], check=True)
 
     def build_native_module(self) -> Path:
-        """Build the native module (patchy-cnb).
+        """Build the native module (claude-native).
 
         Returns:
             Path to the built .node file
@@ -90,18 +90,18 @@ class ClaudeDesktopBuilder:
         native_dir = self.work_dir / 'native-module'
         native_dir.mkdir(parents=True, exist_ok=True)
 
-        patchy_src = Path('src/native/patchy-cnb')
-        if not patchy_src.exists():
-            msg = 'patchy-cnb not found at src/native/patchy-cnb'
+        native_src = Path('src/native/claude-native')
+        if not native_src.exists():
+            msg = 'claude-native not found at src/native/claude-native'
             raise RuntimeError(msg)
 
-        shutil.copytree(patchy_src, native_dir, dirs_exist_ok=True)
+        shutil.copytree(native_src, native_dir, dirs_exist_ok=True)
 
         original_dir = Path.cwd()
         os.chdir(native_dir)
 
         try:
-            self.logger.info('Building patchy-cnb with npm...')
+            self.logger.info('Building claude-native with npm...')
             subprocess.run(['npm', 'install'], check=True, cwd=native_dir)
             subprocess.run(['npm', 'run', 'build'], check=True, cwd=native_dir)
         finally:
