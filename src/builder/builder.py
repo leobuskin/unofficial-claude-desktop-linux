@@ -143,14 +143,84 @@ class ClaudeDesktopBuilder:
         else:
             self.logger.warning('Title bar patch pattern not found')
 
-    def _patch_claude_code_platform_detection(self, app_dir: Path) -> None:
-        """Patch getPlatform() to support Linux for Claude Code.
+    def _patch_browser_window_frame(self, app_dir: Path) -> None:
+        """Patch BrowserWindow options and close behavior for Linux.
 
-        This enables the "Install runtime dependencies" feature in Claude Code mode.
+        Fixes:
+        1. titleBarStyle:"hidden" with no overlay → no window controls on Linux.
+           Cleared so the OS provides standard window decorations.
+        2. Close handler only quits on Windows (gs check). On Linux the window hides
+           but there's no tray to restore it. Patch to include Linux in the quit path.
+        3. Tray icon: Linux needs dark/light variant selection like Windows, since
+           macOS template image auto-inversion doesn't work on Linux.
+        """
+        self.logger.info('Applying BrowserWindow frame patch...')
+
+        build_dir = app_dir / '.vite' / 'build'
+        if not build_dir.exists():
+            self.logger.warning('Build directory not found for frame patch')
+            return
+
+        patched_count = 0
+        for js_file in build_dir.glob('*.js'):
+            content = js_file.read_text()
+            original = content
+
+            # Replace titleBarStyle:"hidden"/"hiddenInset" with "default" for native
+            # decorations. Empty string is not a valid Electron value and strips the
+            # close button on Linux/Wayland.
+            content = re.sub(
+                r'titleBarStyle\s*:\s*"hidden(?:Inset)?"', 'titleBarStyle:"default"', content
+            )
+
+            # Patch close handler: gs&& → (gs||process.platform==="linux")&&
+            # so Linux also quits on close when tray is disabled (instead of hiding
+            # to a non-existent tray).
+            # Original: if(gs&&!Dr("menuBarEnabled")){...I0();return}l.preventDefault()
+            content = re.sub(
+                r'if\(gs&&!(\w+)\("menuBarEnabled"\)\)',
+                r'if((gs||process.platform==="linux")&&!\1("menuBarEnabled"))',
+                content,
+            )
+
+            # Patch tray icon selection for Linux dark mode support.
+            # Original: gs?e=...Dark.ico:...ico:e="TrayIconTemplate.png"
+            # Change to also check dark mode on Linux and use the Dark variant.
+            content = re.sub(
+                r':e="TrayIconTemplate\.png"',
+                ':e=ke.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"',
+                content,
+            )
+
+            # Patch tray recreation to update icon in-place instead of destroy+recreate.
+            # The destroy/recreate cycle causes DBus "already exported" errors on Linux
+            # because the StatusNotifierItem registration isn't cleaned up fast enough.
+            # Original: if(dh&&(dh.destroy(),dh=null),!!t){if(dh=new ke.Tray(...)
+            # Patched: if existing tray and still enabled, just update the image.
+            content = re.sub(
+                r'if\(dh&&\(dh\.destroy\(\),dh=null\),!!t\)\{if\(dh=new ke\.Tray\(ke\.nativeImage\.createFromPath\(r\)\)',
+                'if(dh&&t){dh.setImage(ke.nativeImage.createFromPath(r))}else if(dh&&(dh.destroy(),dh=null),!!t){if(dh=new ke.Tray(ke.nativeImage.createFromPath(r))',
+                content,
+            )
+
+            if content != original:
+                js_file.write_text(content)
+                patched_count += 1
+
+        if patched_count:
+            self.logger.info('BrowserWindow frame patch applied to %d files', patched_count)
+        else:
+            self.logger.warning('No files needed BrowserWindow frame patching')
+
+    def _patch_claude_code_platform_detection(self, app_dir: Path) -> None:
+        """Patch getHostPlatform() to support Linux for Claude Code.
+
+        Inserts a Linux platform check before the 'Unsupported platform' throw
+        inside getHostPlatform(). Uses a targeted insertion approach that survives
+        upstream changes to other platform branches (e.g. added arm64 for win32).
         """
         self.logger.info('Applying Claude Code platforms patch...')
 
-        # Find the main index.js in .vite/build
         index_js = app_dir / '.vite' / 'build' / 'index.js'
         if not index_js.exists():
             self.logger.warning('index.js not found, skipping Claude Code patch')
@@ -158,35 +228,24 @@ class ClaudeDesktopBuilder:
 
         content = index_js.read_text()
 
-        # Original getHostPlatform function only handles darwin and win32.
-        # We need to add Linux support before the throw.
+        # Check if already patched (look specifically inside getHostPlatform)
+        if 'process.platform==="linux")return e==="arm64"?"linux-arm64"' in content:
+            self.logger.info('Claude Code platforms patch already applied, skipping')
+            return
 
-        # Pattern to match the getHostPlatform function (split for readability)
-        old_pattern = (
-            r'getHostPlatform\(\)\{const e=process\.arch;'
-            r'if\(process\.platform==="darwin"\)'
-            r'return e==="arm64"\?"darwin-arm64":"darwin-x64";'
-            r'if\(process\.platform==="win32"\)return"win32-x64";'
-            r'throw new Error\(`Unsupported platform: \$\{process\.platform\}-\$\{e\}`\)\}'
-        )
+        # Insert Linux check right before the throw inside getHostPlatform().
+        # We match the throw pattern that follows the win32 check and prepend the linux branch.
+        linux_check = 'if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";'
+        throw_pattern = r'(getHostPlatform\(\)\{const e=process\.arch;.*?)(throw new Error\(`Unsupported platform: \$\{process\.platform\}-\$\{e\}`\))'
 
-        # New code adds Linux support
-        new_code = (
-            'getHostPlatform(){const e=process.arch;'
-            'if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";'
-            'if(process.platform==="win32")return"win32-x64";'
-            'if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";'
-            'throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
-        )
-
-        new_content = re.sub(old_pattern, new_code, content)
+        new_content = re.sub(throw_pattern, rf'\g<1>{linux_check}\2', content)
 
         if new_content != content:
             index_js.write_text(new_content)
             self.logger.info('Claude Code platforms patch applied successfully')
         else:
-            self.logger.error('Claude Code platforms patch pattern not found')
-            exit(1)
+            self.logger.error('Claude Code platforms patch: getHostPlatform throw pattern not found')
+            raise RuntimeError('Failed to apply Claude Code platforms patch: pattern not found')
 
     def patch_app_asar(self, resources_dir: Path, native_module: Path) -> Path:
         """Patch app.asar with native module and apply patches.
@@ -233,12 +292,16 @@ class ClaudeDesktopBuilder:
                 if json_file.name not in ['build-props.json']:
                     shutil.copy2(json_file, i18n_dir)
 
-            # Apply title bar patch
+            # Apply title bar patch (renderer/UI layer)
             self._patch_title_bar(app_extract)
 
-            # Apply Claude Code platforms patch if requested
+            # Apply Claude Code platforms patch if requested (before frame patch,
+            # since frame patch also modifies index.js and could affect idempotency checks)
             if self.patch_claude_code_platforms:
                 self._patch_claude_code_platform_detection(app_extract)
+
+            # Apply BrowserWindow frame patch (main process layer)
+            self._patch_browser_window_frame(app_extract)
 
             # Repack app.asar
             new_asar = self.work_dir / 'app.asar'
@@ -319,8 +382,9 @@ class ClaudeDesktopBuilder:
             electron_dst = lib_dir / 'node_modules'
             shutil.copytree(electron_src, electron_dst, dirs_exist_ok=True)
 
-            # Copy i18n files to electron resources directory
-            # When app.isPackaged=true, the app looks for i18n at process.resourcesPath
+            # Copy i18n files and tray icons to electron resources directory.
+            # When app.isPackaged=true, the app resolves these at process.resourcesPath
+            # which maps to node_modules/electron/dist/resources/.
             electron_resources = electron_dst / 'electron' / 'dist' / 'resources'
             app_asar = lib_dir / 'app.asar'
             if app_asar.exists():
@@ -334,6 +398,11 @@ class ClaudeDesktopBuilder:
                     if i18n_src.exists():
                         for json_file in i18n_src.glob('*.json'):
                             shutil.copy2(json_file, electron_resources / json_file.name)
+
+                    # Copy tray icons so the system tray works on Linux
+                    resources_src = Path(extract_dir) / 'resources'
+                    for tray_file in resources_src.glob('Tray*'):
+                        shutil.copy2(tray_file, electron_resources / tray_file.name)
 
     def build_deb_package(self) -> Path:
         """Build Debian package."""
@@ -365,15 +434,16 @@ Description: Unofficial Claude Desktop for Linux{source_note}
 
         return self.package_dir / f'{pkg_name}.deb'
 
-    def build(self, *, download: bool = True, force_download: bool = False) -> Path:
+    def build(self, *, download: bool = True, force_download: bool = False, package: bool = True) -> Path:
         """Run the complete build process.
 
         Args:
             download: Download installer if not found locally
             force_download: Force re-download even if cached
+            package: Build .deb package (False to stop after assembly)
 
         Returns:
-            Path to built .deb package
+            Path to built .deb package, or output directory if package=False
 
         """
         self.logger.info('Starting Claude Desktop Linux build from %s...', self.source_handler.name)
@@ -418,10 +488,14 @@ Description: Unofficial Claude Desktop for Linux{source_note}
         # Assemble package
         self.assemble_package(resources_dir, app_asar)
 
+        if not package:
+            self.logger.info('Build complete (output: %s)', self.output_dir)
+            return self.output_dir
+
         # Build Debian package
         self.package_dir.mkdir(parents=True, exist_ok=True)
-        package = self.build_deb_package()
-        self.logger.info('Built Debian package: %s', package)
+        deb = self.build_deb_package()
+        self.logger.info('Built Debian package: %s', deb)
 
         self.logger.info('Build complete!')
-        return package
+        return deb

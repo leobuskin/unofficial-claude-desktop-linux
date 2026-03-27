@@ -51,6 +51,7 @@ def cli(*, verbose: bool, debug: bool) -> None:
     is_flag=True,
     help='Enable Linux platform support in Claude Code mode',
 )
+@click.option('--no-package', is_flag=True, help='Skip .deb packaging, just build to output dir')
 def build(  # noqa: PLR0913
     source: str,
     work_dir: Path | None,
@@ -60,6 +61,7 @@ def build(  # noqa: PLR0913
     no_download: bool,
     force_download: bool,
     patch_claude_code_platforms: bool,
+    no_package: bool,
 ) -> None:
     """Build Claude Desktop for Linux.
 
@@ -80,18 +82,22 @@ def build(  # noqa: PLR0913
         if not skip_deps:
             builder.check_dependencies()
 
-        package = builder.build(
+        result = builder.build(
             download=not no_download,
             force_download=force_download,
+            package=not no_package,
         )
 
-        if package:
-            click.echo(f'Package built: {package}')
-            click.echo('Install with:')
-            if package.suffix == '.deb':
-                click.echo(f'  sudo dpkg -i {package}')
+        if result:
+            if no_package:
+                click.echo(f'Build output: {result}')
             else:
-                click.echo(f'  sudo rpm -i {package}')
+                click.echo(f'Package built: {result}')
+                click.echo('Install with:')
+                if result.suffix == '.deb':
+                    click.echo(f'  sudo dpkg -i {result}')
+                else:
+                    click.echo(f'  sudo rpm -i {result}')
 
     except (OSError, RuntimeError) as e:
         click.echo(f'Error: {e!s}', err=True)
